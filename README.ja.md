@@ -47,7 +47,7 @@ WSL への USB 転送は動きます。同じアダプタが 2 個以上にな�
 | 系統 | 識別に使うもの |
 | --- | --- |
 | **ESP32 系**（CH340 / CP210x 等の裏） | eFuse MAC とチップ種別 |
-| **CH32 RISC-V 系**（WCH-Link / WCH-LinkE の先） | 部品 UUID とチップ署名 |
+| **CH32 RISC-V 系**（WCH-Link / WCH-LinkE の先） | 部品 UUID とチップ署名 — *[ch32rv](https://github.com/ch32-riscv-ug/ch32rv) のリリース待ち* |
 
 それ以外（Arduino、RP2040、STM32、または不明なボードが繋がった生のアダプタ）は
 **Transport までの識別に留まり**、そのことを隠さずに表示します。
@@ -64,8 +64,7 @@ WSL への USB 転送は動きます。同じアダプタが 2 個以上にな�
 
 USB 記述子から特定できないものは、**接続先の基板そのものに問い合わせて**識別します。
 これは [board-identify](https://github.com/tanakamasayuki/board-identify) が Linux 側で
-到達したのと同じ結論であり、本ツールは**同じ識別子フォーマットを使う**ので、
-両者が同じデバイスに同じ名前を付けます。
+到達したのと同じ結論です。
 
 ただし問い合わせは対象を乱します。ESP32 の eFuse MAC を読めばファームウェアが再起動し、
 WCH-Link に attach すればターゲットのコアが止まります。

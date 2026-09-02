@@ -48,7 +48,7 @@ be asked.
 | Family | Identified by |
 | --- | --- |
 | **ESP32** (behind a CH340, CP210x, …) | eFuse MAC and chip type |
-| **CH32 RISC-V** (behind a WCH-Link / WCH-LinkE) | part UUID and chip signature |
+| **CH32 RISC-V** (behind a WCH-Link / WCH-LinkE) | part UUID and chip signature — *waiting on the [ch32rv](https://github.com/ch32-riscv-ug/ch32rv) release* |
 
 Anything else — Arduino, RP2040, STM32, or a bare adapter with an unknown board on it
 — is identified down to the transport only, and says so rather than pretending
@@ -66,7 +66,7 @@ Separate **where a device is plugged in** from **what device it is**.
 Anything that cannot be pinned down from USB descriptors is identified by **asking the
 target board itself** — the same conclusion
 [board-identify](https://github.com/tanakamasayuki/board-identify) reached on the Linux
-side, and this tool uses the same identifier format so both agree on names.
+side.
 
 Asking the board disturbs it: reading an ESP32's eFuse MAC restarts the firmware, and
 attaching to a WCH-Link halts the target core. So probing is not something this tool
