@@ -48,7 +48,7 @@ be asked.
 | Family | Identified by |
 | --- | --- |
 | **ESP32** (behind a CH340, CP210x, …) | eFuse MAC and chip type |
-| **CH32 RISC-V** (behind a WCH-Link / WCH-LinkE) | part UUID and chip signature — *waiting on the [ch32rv](https://github.com/ch32-riscv-ug/ch32rv) release* |
+| **CH32 RISC-V** (behind a WCH-Link / WCH-LinkE) | factory UUID and chip signature, via [ch32rv](https://github.com/ch32-riscv-ug/ch32rv) |
 
 Anything else — Arduino, RP2040, STM32, or a bare adapter with an unknown board on it
 — is identified down to the transport only, and says so rather than pretending

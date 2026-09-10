@@ -297,7 +297,27 @@ Transport（アダプタ / プローブ）の識別は USB 記述子だけで済
 | 系統 | 手段 | 得られる Target ID | 前提 |
 | --- | --- | --- | --- |
 | **ESP32 系**（CH340 / CP210x 等の裏） | シリアル経由の ROM ブートローダ通信、eFuse MAC 読み出し | MAC アドレス + チップ種別 | COM ポートが開けること |
-| **CH32 RISC-V 系**（WCH-Link / WCH-LinkE の先） | WinUSB 経由のベンダプロトコル | 部品 UUID + チップ署名 | interface 0 に WinUSB がバインドされていること |
+| **CH32 RISC-V 系**（WCH-Link / WCH-LinkE の先） | WinUSB 経由のベンダプロトコル | 部品 UUID + チップ署名 | interface 0 に WinUSB がバインドされ、プローブが RISC-V モードであること |
+
+CH32 系の取得手順は `ch32rv-wchlink` v0.2.0 の以下の呼び出しで完結する（実装確認済み）。
+
+```rust
+WchLink::open(&UsbDeviceInfo)   // RISC-V モード (1a86:8010) の interface 0 を claim
+  .probe_info()      -> ProbeInfo        // プローブ自身の情報
+  .set_speed_default(Speed)
+  .attach_chip()     -> AttachInfo       // family + chip_id_be32（上位 4bit = シリコン改訂）
+  .chip_info()       -> ChipInfoStatus   // flash_kb, uuid: [u8; 8], protection_raw
+  .detach_chip()
+```
+
+- **Target の個体識別子** = `ChipInfo.uuid`（8 バイトの工場出荷時 UUID）
+- **Target のチップ種別** = `AttachInfo` の family / chip_id を
+  `ch32rv-target` の `Db` で SKU へ解決する
+- `attach_chip()` はターゲットのコアを停止させるため、副作用のあるプローブである（R4.5）
+
+**要件 R4.15**: WCH-Link が ARM モードの場合、RISC-V モード用の
+VID/PID では開けない。モードを検出し、切り替えが必要である旨を案内する。
+**アプリがモードを自動で切り替えてはならない。**
 
 **要件 R4.12**: WCH-Link 系のプローブ実行前に `DEVPKEY_Device_Service` を確認し、
 `WinUSB` でない場合はプローブを試行せず、WinUSB ドライバの割り当てが必要である旨を
@@ -583,10 +603,15 @@ HKCU\Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5
 **要件 R11.3**: ch32rv の crate は **crates.io 公開版に依存する。**
 git 参照や vendoring は行わない。
 
-ch32rv は現在 `version = "0.0.1"` で crates.io 未公開である。
-公開が完了するまで、**CH32 RISC-V 系の Target 識別は実装しない**（§15 のマイルストーン参照）。
-プローブ層は差し替え可能な単位に分離されているため（R1.2 / R4.14）、
-本アプリの他の機能はこの依存を待たずに完成させられる。
+必要な crate は 2026-09-02 に **v0.2.0 として公開済み**である。
+
+```text
+ch32rv-wchlink   0.2.0    WCH-Link プロトコル
+ch32rv-usb       0.2.0    プローブの列挙とオープン（nusb ラッパ）
+ch32rv-target    0.2.0    チップ ID → SKU 解決の DB
+ch32rv-dmi       0.2.0    （ch32rv-wchlink の依存）
+ch32rv-contract  0.2.0    （同上）
+```
 
 ch32rv の workspace が固定している外部 crate のバージョンに合わせる。
 
@@ -594,6 +619,23 @@ ch32rv の workspace が固定している外部 crate のバージョンに合�
 nusb       0.2.7
 serialport 4.10
 ```
+
+#### 0.x 系への依存に対する扱い
+
+ch32rv は 1.0 到達前であり、**API の変更が想定されている。**
+Cargo の semver では `0.2` → `0.3` は破壊的変更として扱われる。
+
+**要件 R11.5**: バージョン指定は `"0.2"` 形式（`>=0.2.0, <0.3.0`）とする。
+`0.3` 以降への追従は自動で行わず、明示的に上げる。
+
+**要件 R11.6**: ch32rv のマイナー版を上げる際は、
+**実機での識別動作を再確認してからでなければ取り込まない。**
+CI だけでは検証できないため、確認手順を M2 の成果物に含める。
+
+**要件 R11.7**: `ch32rv-usb` による USB 列挙は、
+**WCH-Link プローブを見つけて開くためだけに用いる。**
+本アプリのデバイス一覧の情報源は `CfgMgr32` である（R11.1）。
+2 つの列挙結果を突き合わせる際は、Instance ID を結合キーとする。
 
 ### 11.4 Rust の実装規律
 
@@ -751,14 +793,24 @@ workflow_dispatch (bump: major|minor|patch)
 
 ### 15.0 マイルストーン
 
-CH32 RISC-V 系の Target 識別は **ch32rv の crates.io 公開に依存する**（R11.3）。
-そのため、外部依存を待たずに完成させられる範囲を先に切る。
+必要な依存は全て公開済みであり、**外部要因による待ちはない。**
+以下は納品順序の判断であって、依存関係による制約ではない。
 
-| | 内容 | 外部依存 |
+| | 内容 | 依存 |
 | --- | --- | --- |
-| **M1** | §15.1 の必須機能。**Target 識別は ESP32 系のみ** | `espflash`（公開済み） |
-| **M2** | CH32 RISC-V 系の Target 識別を追加 | **ch32rv の crates.io 公開待ち** |
+| **M1** | §15.1 の必須機能。**Target 識別は ESP32 系のみ** | `espflash` 4.5 |
+| **M2** | CH32 RISC-V 系の Target 識別を追加 | `ch32rv-*` 0.2 |
 | **M3** | §15.2 の拡張 | — |
+
+**M1 と M2 を分ける理由**（ch32rv 公開後も分割を維持する根拠）:
+
+1. ch32rv は 1.0 到達前であり、API 変更が想定されている（R11.5 / R11.6）。
+   分けておけば、その変動が M1 の成果物に波及しない。
+2. CH32 系は WinUSB ドライバの割り当て確認（R4.12）と
+   RISC-V モードの検出（R4.15）という追加の UX 面を伴う。
+   2 系統を同時に立ち上げるより、1 系統で経路を固めてから増やす方が確実である。
+3. §5 の判定アルゴリズムは実機で調整する前提であり（P5.2）、
+   調整対象を先に絞れる。
 
 **要件 R15.0**: M1 単独でリリース可能であること。
 M2 の追加が、M1 の識別ロジック・データモデル・UI の変更を伴わないこと
