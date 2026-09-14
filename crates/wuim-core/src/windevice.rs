@@ -55,10 +55,16 @@ impl WinUsbDevice {
     }
 
     /// The best name available for display.
+    ///
+    /// `FriendlyName` first: it is what Device Manager shows, so it is the name
+    /// the user already knows the device by. The USB `iProduct` string is the
+    /// fallback because it is often generic — a CH340 calls itself "USB Serial"
+    /// while Windows calls it "USB-SERIAL CH340".
     pub fn display_name(&self) -> &str {
-        self.bus_reported_device_desc
+        self.friendly_name
             .as_deref()
-            .or(self.friendly_name.as_deref())
+            .map(strip_com_suffix)
+            .or(self.bus_reported_device_desc.as_deref())
             .or(self.device_desc.as_deref())
             .unwrap_or(&self.instance_id.raw)
     }
@@ -88,6 +94,26 @@ impl ContainerId {
     pub fn is_stable(&self) -> bool {
         self.version == 5
     }
+}
+
+/// Strips a trailing ` (COM12)` from a device name.
+///
+/// Windows puts the COM number inside the friendly name, and usbipd caches that
+/// whole string when the device is bound — so the number in it can name a port
+/// the device no longer has. The live number is read from the registry and
+/// shown on its own, so the copy baked into the name is dropped rather than
+/// contradicting it.
+pub fn strip_com_suffix(name: &str) -> &str {
+    let Some(open) = name.rfind(" (COM") else {
+        return name;
+    };
+    let Some(digits) = name[open + " (COM".len()..].strip_suffix(')') else {
+        return name;
+    };
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return name;
+    }
+    name[..open].trim_end()
 }
 
 /// The well-known "this device belongs to no container" sentinel.
@@ -350,6 +376,33 @@ mod tests {
     fn multi_sz_splits_on_nul() {
         let units: Vec<u16> = "a\0bb\0\0".encode_utf16().collect();
         assert_eq!(split_multi_sz(&units), vec!["a", "bb"]);
+    }
+
+    #[test]
+    fn strips_a_trailing_com_number() {
+        // usbipd hands back this string with a stale number in it.
+        assert_eq!(
+            strip_com_suffix("USB-SERIAL CH340 (COM7)"),
+            "USB-SERIAL CH340"
+        );
+        assert_eq!(
+            strip_com_suffix("USB-SERIAL CH340 (COM32)"),
+            "USB-SERIAL CH340"
+        );
+    }
+
+    #[test]
+    fn leaves_names_without_a_com_number_alone() {
+        assert_eq!(strip_com_suffix("USB Serial"), "USB Serial");
+        assert_eq!(strip_com_suffix("Arduino Uno"), "Arduino Uno");
+        // Not a port number, so not a port suffix.
+        assert_eq!(strip_com_suffix("Widget (COMPACT)"), "Widget (COMPACT)");
+        assert_eq!(strip_com_suffix("Widget (COM)"), "Widget (COM)");
+        // A mid-string port number is left in place; only a suffix is dropped.
+        assert_eq!(
+            strip_com_suffix("Hub (COM3) downstream"),
+            "Hub (COM3) downstream"
+        );
     }
 
     #[test]

@@ -62,7 +62,6 @@ const en = {
 
   "detail.select": "Select a device.",
   "detail.port": "Port",
-  "detail.port.note": "(never persisted)",
   "detail.location": "Location",
   "detail.driver": "Driver",
   "detail.transport": "Transport",
@@ -155,7 +154,6 @@ const ja: Record<Key, string> = {
 
   "detail.select": "デバイスを選択してください。",
   "detail.port": "ポート",
-  "detail.port.note": "（永続化しない）",
   "detail.location": "物理位置",
   "detail.driver": "ドライバ",
   "detail.transport": "Transport",

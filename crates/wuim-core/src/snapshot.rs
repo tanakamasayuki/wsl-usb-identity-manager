@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use crate::instance_id::InstanceId;
 use crate::usbipd::{self, SharingState, UsbipdDevice};
-use crate::windevice::{self, WinUsbDevice};
+use crate::windevice::{self, WinUsbDevice, strip_com_suffix};
 
 /// One device, with whatever each side knows about it.
 #[derive(Debug, Clone, Serialize)]
@@ -119,10 +119,14 @@ impl Snapshot {
                 .and_then(|s| by_instance.remove(&s.to_ascii_lowercase()));
 
             let instance_id = InstanceId::parse(&entry.instance_id);
+            // While attached there is no Windows node to read a name from, so
+            // usbipd's cached description stands in. Stripping its port suffix
+            // keeps the name identical to the one shown the rest of the time,
+            // instead of the row appearing to rename itself on attach.
             let name = win
                 .as_ref()
                 .map(|d| d.display_name().to_owned())
-                .unwrap_or_else(|| entry.description.clone());
+                .unwrap_or_else(|| strip_com_suffix(&entry.description).to_owned());
 
             devices.push(DeviceRow {
                 identity_basis: IdentityBasis::from_instance_id(&instance_id),

@@ -298,10 +298,7 @@
 
         <dl>
           <dt>{t("detail.port")}</dt>
-          <dd>
-            {selected.busId ?? "—"} / {selected.comPort ?? "—"}
-            <span class="note">{t("detail.port.note")}</span>
-          </dd>
+          <dd>{selected.busId ?? "—"} / {selected.comPort ?? "—"}</dd>
           <dt>{t("detail.location")}</dt>
           <dd><code>{selected.locationPath ?? "—"}</code></dd>
           <dt>{t("detail.driver")}</dt>
@@ -461,6 +458,11 @@
   footer {
     flex: 0 0 auto;
     height: 150px;
+    /* The detail pane exists to be read off and pasted elsewhere — instance
+       ids, location paths, identity keys. The list above stays unselectable so
+       dragging across rows still selects rows. */
+    user-select: text;
+    cursor: text;
     padding: 12px 14px;
     border-top: 1px solid var(--border);
     background: var(--bg-header);
