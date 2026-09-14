@@ -1,0 +1,255 @@
+//! One moment in time: the Windows enumeration joined with `usbipd state`.
+//!
+//! The join key is the Device Instance ID and nothing else. Bus IDs are never
+//! used for it (requirement R5.1).
+
+use anyhow::Result;
+use serde::Serialize;
+use std::collections::HashMap;
+
+use crate::instance_id::InstanceId;
+use crate::usbipd::{self, SharingState, UsbipdDevice};
+use crate::windevice::{self, WinUsbDevice};
+
+/// One device, with whatever each side knows about it.
+#[derive(Debug, Clone, Serialize)]
+pub struct DeviceRow {
+    pub instance_id: InstanceId,
+    pub name: String,
+    /// The node Windows currently exposes. `None` while attached or absent.
+    pub windows: Option<WinUsbDevice>,
+    pub usbipd: Option<UsbipdDevice>,
+    /// The VBoxUSB stub node Windows exposes while the device is attached
+    /// (finding F4).
+    pub stub: Option<WinUsbDevice>,
+    pub identity_basis: IdentityBasis,
+}
+
+impl DeviceRow {
+    pub fn sharing_state(&self) -> SharingState {
+        match &self.usbipd {
+            Some(d) => d.sharing_state(),
+            // Something usbipd does not track, such as a hub or a child node
+            // of a composite device.
+            None => SharingState::NotShared,
+        }
+    }
+
+    pub fn bus_id(&self) -> Option<&str> {
+        self.usbipd.as_ref()?.bus_id.as_deref()
+    }
+
+    pub fn com_port(&self) -> Option<&str> {
+        self.windows.as_ref()?.com_port.as_deref()
+    }
+
+    /// The stable identifier of the physical port (finding F2). Shown and
+    /// matched against, never persisted as a device identity.
+    pub fn location_path(&self) -> Option<&str> {
+        self.windows
+            .as_ref()?
+            .location_paths
+            .first()
+            .map(String::as_str)
+    }
+}
+
+/// What the identity currently rests on, matching the routes in requirements §4.1.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "basis", content = "value", rename_all = "snake_case")]
+pub enum IdentityBasis {
+    /// Route 1: a USB serial pins down the transport. No probe needed.
+    UsbSerial(String),
+    /// Route 2 or 3: no serial, so the port is the only handle there is.
+    /// Identifying the unit itself requires a probe (finding F3).
+    PortOnly,
+}
+
+impl IdentityBasis {
+    fn from_instance_id(id: &InstanceId) -> Self {
+        match id.unit.serial() {
+            Some(serial) => Self::UsbSerial(serial.to_owned()),
+            None => Self::PortOnly,
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::UsbSerial(_) => "serial",
+            Self::PortOnly => "port only",
+        }
+    }
+
+    pub fn needs_probe(&self) -> bool {
+        matches!(self, Self::PortOnly)
+    }
+}
+
+/// The device list at one point in time.
+#[derive(Debug, Clone, Serialize)]
+pub struct Snapshot {
+    /// Devices usbipd deals with.
+    pub devices: Vec<DeviceRow>,
+    /// Nodes Windows exposes but usbipd does not list: hubs, interface nodes of
+    /// composite devices, and stubs of attached devices.
+    pub other_nodes: Vec<WinUsbDevice>,
+}
+
+impl Snapshot {
+    /// Reads the current state from the machine. Probes nothing (R4.6).
+    pub fn capture() -> Result<Self> {
+        let windows = windevice::enumerate_present_usb_devices()?;
+        let usbipd = usbipd::query()?;
+        Ok(Self::join(windows, usbipd))
+    }
+
+    /// Joins the two enumerations. Kept free of I/O so it can be tested.
+    pub fn join(windows: Vec<WinUsbDevice>, usbipd: Vec<UsbipdDevice>) -> Self {
+        let mut by_instance: HashMap<String, WinUsbDevice> = windows
+            .into_iter()
+            .map(|d| (d.instance_id.raw.to_ascii_lowercase(), d))
+            .collect();
+
+        let mut devices = Vec::with_capacity(usbipd.len());
+        for entry in usbipd {
+            let win = by_instance.remove(&entry.instance_id.to_ascii_lowercase());
+            let stub = entry
+                .stub_instance_id
+                .as_ref()
+                .and_then(|s| by_instance.remove(&s.to_ascii_lowercase()));
+
+            let instance_id = InstanceId::parse(&entry.instance_id);
+            let name = win
+                .as_ref()
+                .map(|d| d.display_name().to_owned())
+                .unwrap_or_else(|| entry.description.clone());
+
+            devices.push(DeviceRow {
+                identity_basis: IdentityBasis::from_instance_id(&instance_id),
+                instance_id,
+                name,
+                windows: win,
+                usbipd: Some(entry),
+                stub,
+            });
+        }
+
+        let mut other_nodes: Vec<WinUsbDevice> = by_instance.into_values().collect();
+        other_nodes.sort_by(|a, b| a.instance_id.raw.cmp(&b.instance_id.raw));
+
+        // Connected devices first, by name; everything absent goes to the end.
+        devices.sort_by(|a, b| {
+            let key = |r: &DeviceRow| {
+                (
+                    !r.usbipd.as_ref().is_some_and(UsbipdDevice::is_connected),
+                    r.name.to_lowercase(),
+                    r.instance_id.raw.clone(),
+                )
+            };
+            key(a).cmp(&key(b))
+        });
+
+        Self {
+            devices,
+            other_nodes,
+        }
+    }
+
+    pub fn connected(&self) -> impl Iterator<Item = &DeviceRow> {
+        self.devices
+            .iter()
+            .filter(|r| r.usbipd.as_ref().is_some_and(UsbipdDevice::is_connected))
+    }
+
+    /// Groups of connected devices that share a VID/PID and have no serial, so
+    /// nothing in their descriptors tells them apart.
+    ///
+    /// This is the problem the whole tool exists to solve, so it is surfaced
+    /// rather than left for the user to notice.
+    pub fn ambiguous_groups(&self) -> Vec<(String, Vec<&DeviceRow>)> {
+        let mut groups: HashMap<String, Vec<&DeviceRow>> = HashMap::new();
+        for row in self.connected() {
+            if !row.identity_basis.needs_probe() {
+                continue;
+            }
+            let Some(key) = row.instance_id.vid_pid_string() else {
+                continue;
+            };
+            groups.entry(key).or_default().push(row);
+        }
+        let mut out: Vec<(String, Vec<&DeviceRow>)> =
+            groups.into_iter().filter(|(_, v)| v.len() > 1).collect();
+        out.sort_by(|a, b| a.0.cmp(&b.0));
+        out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::usbipd;
+
+    fn usbipd_entry(instance_id: &str, bus_id: Option<&str>, stub: Option<&str>) -> UsbipdDevice {
+        let json = format!(
+            r#"{{"Devices":[{{"BusId":{},"ClientIPAddress":null,"Description":"test",
+            "InstanceId":{},"IsForced":false,"PersistedGuid":null,"StubInstanceId":{}}}]}}"#,
+            bus_id.map_or("null".into(), |b| format!("{b:?}")),
+            serde_json::to_string(instance_id).unwrap(),
+            stub.map_or("null".into(), |s| serde_json::to_string(s).unwrap()),
+        );
+        usbipd::parse(&json).unwrap().pop().unwrap()
+    }
+
+    #[test]
+    fn serial_devices_do_not_need_a_probe() {
+        let id = InstanceId::parse(r"USB\VID_1A86&PID_55D3\5B5F090816");
+        let basis = IdentityBasis::from_instance_id(&id);
+        assert_eq!(basis, IdentityBasis::UsbSerial("5B5F090816".into()));
+        assert!(!basis.needs_probe());
+    }
+
+    #[test]
+    fn serialless_devices_need_a_probe() {
+        let id = InstanceId::parse(r"USB\VID_1A86&PID_7523\8&7CC2A31&0&1");
+        assert_eq!(
+            IdentityBasis::from_instance_id(&id),
+            IdentityBasis::PortOnly
+        );
+        assert!(IdentityBasis::from_instance_id(&id).needs_probe());
+    }
+
+    #[test]
+    fn join_matches_case_insensitively() {
+        let entry = usbipd_entry(r"USB\VID_1A86&PID_7523\8&7CC2A31&0&1", Some("16-1"), None);
+        let snapshot = Snapshot::join(Vec::new(), vec![entry]);
+        assert_eq!(snapshot.devices.len(), 1);
+        assert_eq!(snapshot.devices[0].bus_id(), Some("16-1"));
+        // Nothing to join against, since the Windows enumeration was empty.
+        assert!(snapshot.devices[0].windows.is_none());
+    }
+
+    #[test]
+    fn ambiguous_groups_need_two_or_more_serialless_devices() {
+        let one = usbipd_entry(r"USB\VID_1A86&PID_7523\8&7CC2A31&0&1", Some("16-1"), None);
+        let two = usbipd_entry(r"USB\VID_1A86&PID_7523\8&7CC2A31&0&2", Some("16-2"), None);
+        let lone = usbipd_entry(r"USB\VID_1A86&PID_55D3\5B5F090816", Some("16-3"), None);
+
+        let single = Snapshot::join(Vec::new(), vec![one.clone(), lone.clone()]);
+        assert!(single.ambiguous_groups().is_empty());
+
+        let pair = Snapshot::join(Vec::new(), vec![one, two, lone]);
+        let groups = pair.ambiguous_groups();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].0, "1a86:7523");
+        assert_eq!(groups[0].1.len(), 2);
+    }
+
+    #[test]
+    fn disconnected_devices_sort_last() {
+        let absent = usbipd_entry(r"USB\VID_1A86&PID_7523\8&7CC2A31&0&1", None, None);
+        let present = usbipd_entry(r"USB\VID_1A86&PID_55D3\5B5F090816", Some("16-3"), None);
+        let snapshot = Snapshot::join(Vec::new(), vec![absent, present]);
+        assert!(snapshot.devices[0].bus_id().is_some());
+        assert!(snapshot.devices[1].bus_id().is_none());
+    }
+}

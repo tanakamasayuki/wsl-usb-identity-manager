@@ -1,0 +1,18 @@
+[package]
+name = "wuim-cli"
+description = "Developer CLI for inspecting what WSL USB Identity Manager sees"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "wuim"
+path = "src/main.rs"
+
+[dependencies]
+wuim-core = { path = "../wuim-core" }
+wuim-probe = { path = "../wuim-probe" }
+anyhow.workspace = true
+serde_json.workspace = true

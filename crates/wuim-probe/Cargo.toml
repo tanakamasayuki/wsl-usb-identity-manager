@@ -1,0 +1,24 @@
+[package]
+name = "wuim-probe"
+description = "Target identification probes for WSL USB Identity Manager"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+wuim-core = { path = "../wuim-core" }
+anyhow.workspace = true
+serde.workspace = true
+
+# The `cli` feature pulls in argument parsing, progress bars and a terminal
+# renderer we have no use for, and its module carries no SemVer guarantee.
+espflash = { version = "4.6", default-features = false, features = ["serialport"] }
+# The usbportinfo-* features are enabled so `UsbPortInfo` has a fixed set of
+# fields: it has no `Default`, so a struct literal has to name all of them,
+# and Cargo feature unification could otherwise switch them on from elsewhere.
+serialport = { version = "4.7", default-features = false, features = [
+    "usbportinfo-interface",
+    "usbportinfo-location",
+] }

@@ -1,0 +1,15 @@
+[workspace]
+resolver = "3"
+members = ["crates/wuim-core", "crates/wuim-probe", "crates/wuim-cli"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.98"
+license = "MIT"
+repository = "https://github.com/tanakamasayuki/wsl-usb-identity-manager"
+
+[workspace.dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

@@ -1,0 +1,23 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# Tauri / frontend (once the GUI work starts)
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+
+# Local settings store; portable mode keeps these next to the exe (R7.2)
+portable.txt
+devices.json
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
