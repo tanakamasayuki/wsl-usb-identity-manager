@@ -4,10 +4,11 @@
 //! is something the UI depends on, and pinning it here means the core model can
 //! change without silently reshaping what Svelte is reading.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use wuim_core::UsbIds;
 use wuim_core::recall::{Confidence, Recalled};
 use wuim_core::snapshot::DeviceRow;
+use wuim_core::store::Settings;
 use wuim_probe::notes;
 
 /// One row of either table.
@@ -73,6 +74,39 @@ pub struct DeviceView {
     /// What the stored file says this device is, when it recognises it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub identity: Option<Identity>,
+}
+
+/// Settings as the frontend sees them.
+///
+/// A separate type from [`Settings`] for the same reason [`DeviceView`] is
+/// separate from `DeviceRow`: the stored file is snake_case throughout so it
+/// reads consistently when opened by hand, while the frontend works in
+/// camelCase. Converting here keeps each side in its own convention instead of
+/// one leaking into the other — which is exactly what went wrong when the two
+/// shared a struct and the field names silently failed to line up.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsView {
+    pub auto_identify: bool,
+    pub auto_exclude: Vec<String>,
+}
+
+impl From<&Settings> for SettingsView {
+    fn from(settings: &Settings) -> Self {
+        Self {
+            auto_identify: settings.auto_identify,
+            auto_exclude: settings.auto_exclude.clone(),
+        }
+    }
+}
+
+impl From<SettingsView> for Settings {
+    fn from(view: SettingsView) -> Self {
+        Self {
+            auto_identify: view.auto_identify,
+            auto_exclude: view.auto_exclude,
+        }
+    }
 }
 
 /// A recalled or freshly probed identity, with how much it is worth (R4.3).
@@ -217,4 +251,39 @@ fn probe_options(row: &DeviceRow) -> Vec<ProbeOption> {
             reason: verdict.note().map(|n| n.code),
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The frontend reads these names verbatim from `src/lib/types.ts`.
+    ///
+    /// Nothing checks the two sides against each other at build time, so a
+    /// rename here that is not mirrored there fails silently at runtime — which
+    /// is how the settings quietly stopped loading once already. Pinning the
+    /// names makes that a failing test instead of a log line nobody reads.
+    #[test]
+    fn settings_cross_the_boundary_in_camel_case() {
+        let json = serde_json::to_value(SettingsView::from(&Settings::default())).unwrap();
+        let object = json.as_object().unwrap();
+        let keys: Vec<&str> = object.keys().map(String::as_str).collect();
+
+        assert!(
+            keys.iter().all(|key| !key.contains('_')),
+            "snake_case leaked to the frontend: {keys:?}"
+        );
+        assert!(object.contains_key("autoIdentify"), "{keys:?}");
+        assert!(object.contains_key("autoExclude"), "{keys:?}");
+    }
+
+    #[test]
+    fn settings_come_back_from_what_the_frontend_sends() {
+        let sent = r#"{"autoIdentify": false, "autoExclude": ["1a86:7523"]}"#;
+        let view: SettingsView = serde_json::from_str(sent).unwrap();
+        let settings: Settings = view.into();
+
+        assert!(!settings.auto_identify);
+        assert_eq!(settings.auto_exclude, vec!["1a86:7523".to_string()]);
+    }
 }

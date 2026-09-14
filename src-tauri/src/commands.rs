@@ -10,13 +10,13 @@ use std::time::Instant;
 use wuim_core::UsbIds;
 use wuim_core::recall;
 use wuim_core::snapshot::{DeviceRow, Snapshot};
-use wuim_core::store::{Hints, Settings, StoredDevice};
+use wuim_core::store::{Hints, StoredDevice};
 use wuim_core::usbipd::{self, Operation};
 use wuim_probe::TargetIdentity;
 
 use crate::logging;
 use crate::state;
-use crate::view::{DeviceView, Identity};
+use crate::view::{DeviceView, Identity, SettingsView};
 
 /// anyhow's chain, flattened for the frontend and written to the log on the way
 /// past. Tauri needs a `Serialize` error and `{:#}` keeps the causes that make a
@@ -109,7 +109,7 @@ fn to_views(snapshot: &Snapshot) -> Vec<DeviceView> {
 #[tauri::command]
 pub fn read_settings() -> StoredSettings {
     StoredSettings {
-        settings: state::with(|store| store.settings.clone()),
+        settings: state::with(|store| SettingsView::from(&store.settings)),
         writable: state::is_writable(),
         path: state::path().display().to_string(),
     }
@@ -118,7 +118,7 @@ pub fn read_settings() -> StoredSettings {
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StoredSettings {
-    pub settings: Settings,
+    pub settings: SettingsView,
     /// False when the file on disk was refused; the panel says so.
     pub writable: bool,
     pub path: String,
@@ -126,12 +126,12 @@ pub struct StoredSettings {
 
 /// Saves the settings the user changed.
 #[tauri::command]
-pub fn write_settings(settings: Settings) {
+pub fn write_settings(settings: SettingsView) {
     logging::info(&format!(
         "settings: auto_identify={} exclude={:?}",
         settings.auto_identify, settings.auto_exclude
     ));
-    state::update(|store| store.settings = settings);
+    state::update(|store| store.settings = settings.into());
 }
 
 /// Runs a usbipd operation against a device.
