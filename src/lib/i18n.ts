@@ -12,7 +12,7 @@ const en = {
   "toolbar.settings": "Settings",
   "toolbar.auto_on": "Auto-identify on",
   "toolbar.auto_on.hint":
-    "Devices matching the allow list are identified as soon as they are plugged in, which restarts them.",
+    "A device with no serial number is identified as soon as it is plugged in, which restarts the board. Excluded VID:PID are left alone.",
 
   "filter.connected": "Connected",
   "filter.shared": "Shared",
@@ -46,11 +46,11 @@ const en = {
   "settings.title": "Automatic identification",
   "settings.auto.label": "Identify a device right after it is plugged in",
   "settings.auto.note":
-    "Off by default. A probe restarts the board, so this only runs in the {seconds} seconds after a device arrives, when nothing is using it yet — never at startup, and never on a timer.",
-  "settings.allow.label": "Only these VID:PID (comma separated)",
-  "settings.allow.placeholder": "1a86:7523, 1a86:55d3",
-  "settings.allow.note":
-    "Nothing is sent to a device that is not listed here. Devices that report a serial number are skipped: they need no probe.",
+    "A probe restarts the board, so this only runs in the {seconds} seconds after a device arrives, when nothing is using it yet — never at startup, and never on a timer.",
+  "settings.exclude.label": "Never identify these VID:PID (comma separated)",
+  "settings.exclude.placeholder": "1a86:7523, 10c4:ea60",
+  "settings.exclude.note":
+    "Everything else that has no serial number is identified on arrival. List the hardware that must not be disturbed — a USB-serial adapter wired to equipment rather than to a dev board, for instance. Devices that report a serial number are never probed automatically: they need no probe.",
   "settings.close": "Close",
   "settings.unsaved": "Settings are not saved yet and reset when the app restarts.",
 
@@ -104,7 +104,7 @@ const ja: Record<Key, string> = {
   "toolbar.settings": "設定",
   "toolbar.auto_on": "自動識別 ON",
   "toolbar.auto_on.hint":
-    "対象 VID:PID のデバイスは接続された直後に自動で識別され、ボードが再起動します。",
+    "シリアル番号を持たないデバイスは接続された直後に自動で識別され、ボードが再起動します。除外した VID:PID には触れません。",
 
   "filter.connected": "接続中",
   "filter.shared": "共有可能",
@@ -138,11 +138,11 @@ const ja: Record<Key, string> = {
   "settings.title": "自動識別",
   "settings.auto.label": "接続された直後に自動で識別する",
   "settings.auto.note":
-    "既定は無効です。識別はボードを再起動させるため、接続イベントから {seconds} 秒以内、まだ誰も使っていないタイミングに限って実行します。起動時や定期実行では行いません。",
-  "settings.allow.label": "対象とする VID:PID（カンマ区切り）",
-  "settings.allow.placeholder": "1a86:7523, 1a86:55d3",
-  "settings.allow.note":
-    "ここに挙げていないデバイスへは何も送信しません。シリアル番号を持つデバイスは識別不要なので対象外です。",
+    "識別はボードを再起動させるため、接続イベントから {seconds} 秒以内、まだ誰も使っていないタイミングに限って実行します。起動時や定期実行では行いません。",
+  "settings.exclude.label": "識別しない VID:PID（カンマ区切り）",
+  "settings.exclude.placeholder": "1a86:7523, 10c4:ea60",
+  "settings.exclude.note":
+    "ここに挙げたもの以外で、シリアル番号を持たないデバイスは接続時に識別されます。触られては困る機器を挙げてください（開発ボードではなく装置に繋がった USB シリアル変換など）。シリアル番号を持つデバイスは識別不要なので、自動識別の対象になりません。",
   "settings.close": "閉じる",
   "settings.unsaved": "設定はまだ保存されません。再起動すると既定に戻ります。",
 

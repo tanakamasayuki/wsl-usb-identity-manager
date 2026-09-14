@@ -47,14 +47,21 @@
   /**
    * Automatic identification right after a device is plugged in (R4.8).
    *
-   * Off by default, and deliberately narrow: a probe restarts the board, so it
-   * is only defensible in the moment a device arrives, before anything has
-   * opened it. It never runs at startup — the devices already plugged in have
-   * been running for a while and something may well be talking to them (R4.6).
+   * On by default, and gated by an exclusion list rather than the allow list
+   * requirement R4.9 describes. Listing carriers up front does not work: the
+   * VID:PID of a CH340 says nothing about whether a dev board or a router
+   * console is on the other end of it, so an allow list ends up naming every
+   * common bridge anyway. The exclusion list lets the user rule out the
+   * specific hardware that must not be disturbed.
+   *
+   * Still deliberately narrow: a probe restarts the board, so it only runs in
+   * the moment a device arrives, before anything has opened it. It never runs
+   * at startup — the devices already plugged in have been running for a while
+   * and something may well be talking to them (R4.6).
    */
-  let autoIdentify = $state(false);
-  /** Explicit VID:PID list. Nothing outside it is ever touched (R4.9). */
-  let autoAllowList = $state("");
+  let autoIdentify = $state(true);
+  /** VID:PID never probed automatically. Empty means nothing is excluded. */
+  let autoExcludeList = $state("");
 
   const GRACE_SECONDS = 10;
 
@@ -104,20 +111,26 @@
     seen = new Set(reachable.map((d) => d.instanceId));
     seeded = true;
 
-    if (!autoIdentify) return;
-    const now = Date.now();
-    for (const device of arrivals) {
-      if (autoEligible(device)) {
+    if (autoIdentify) {
+      const now = Date.now();
+      for (const device of arrivals) {
+        // Only the filters that cannot change while the device stays plugged
+        // in are applied here. Whether a probe can run yet is decided later:
+        // see drain().
+        if (device.serial) continue;
+        if (device.vidPid && excluded().has(device.vidPid)) continue;
         pending.push({ instanceId: device.instanceId, arrivedAt: now });
       }
     }
+    // Always drain, not only when something arrived: an entry queued a moment
+    // ago may only now have become probeable.
     void drain();
   }
 
-  /** The allow list, normalised to lowercase `vvvv:pppp`. */
-  function allowed(): Set<string> {
+  /** The exclusion list, normalised to lowercase `vvvv:pppp`. */
+  function excluded(): Set<string> {
     return new Set(
-      autoAllowList
+      autoExcludeList
         .split(/[\s,]+/)
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean),
@@ -128,29 +141,40 @@
     // A device that reports a serial needs no probe (R4.8).
     if (device.serial) return false;
     if (identities[device.instanceId]) return false;
-    if (!device.vidPid || !allowed().has(device.vidPid)) return false;
+    if (device.vidPid && excluded().has(device.vidPid)) return false;
     return device.probes.some((p) => p.available);
   }
 
   /**
    * Runs queued probes one at a time.
    *
-   * Serial, because two probes would fight over the same adapter, and because a
-   * queue that fell behind could otherwise reset a board long after it was
-   * plugged in — the grace window below is what keeps that from happening.
+   * Serial, because two probes would fight for the same adapter.
+   *
+   * An entry is kept and retried rather than dropped when it is not ready: a
+   * device becomes visible to Windows a moment before its COM port is assigned,
+   * and a probe needs the COM port. Checking once, at the instant of arrival,
+   * made automatic identification a race it usually lost. The grace window is
+   * what bounds the retrying — never the single chance it happened to get.
    */
   async function drain() {
     if (draining) return;
     draining = true;
     try {
-      while (pending.length > 0) {
-        const item = pending.shift()!;
-        if (Date.now() - item.arrivedAt > GRACE_SECONDS * 1000) continue;
-        const device = devices.find((d) => d.instanceId === item.instanceId);
-        if (!device || !autoIdentify || !autoEligible(device)) continue;
-        const probe = device.probes.find((p) => p.available);
-        if (!probe) continue;
-        await identify(device.instanceId, probe.family);
+      for (;;) {
+        const cutoff = Date.now() - GRACE_SECONDS * 1000;
+        pending = pending.filter((p) => p.arrivedAt > cutoff);
+
+        const ready = pending.findIndex((p) => {
+          const device = devices.find((d) => d.instanceId === p.instanceId);
+          return !!device && autoIdentify && autoEligible(device);
+        });
+        // Nothing is ready right now; the next poll looks again.
+        if (ready < 0) break;
+
+        const [item] = pending.splice(ready, 1);
+        const device = devices.find((d) => d.instanceId === item.instanceId)!;
+        const probe = device.probes.find((p) => p.available)!;
+        await identify(item.instanceId, probe.family);
       }
     } finally {
       draining = false;
@@ -253,7 +277,8 @@
     <div class="actions">
       {#if autoIdentify}
         <!-- A setting that restarts boards on its own should be visible without
-             opening a dialog to check. -->
+             opening a dialog to check — and so should the case where it is
+             switched on but cannot match anything. -->
         <span class="armed" title={t("toolbar.auto_on.hint")}>{t("toolbar.auto_on")}</span>
       {/if}
       <button onclick={() => (settingsOpen = true)}>
@@ -355,11 +380,11 @@
 {#if settingsOpen}
   <SettingsPanel
     enabled={autoIdentify}
-    allowList={autoAllowList}
+    excludeList={autoExcludeList}
     graceSeconds={GRACE_SECONDS}
     onchange={(next) => {
       autoIdentify = next.enabled;
-      autoAllowList = next.allowList;
+      autoExcludeList = next.excludeList;
     }}
     onclose={() => (settingsOpen = false)}
   />

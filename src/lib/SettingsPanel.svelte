@@ -3,14 +3,15 @@
 
   interface Props {
     enabled: boolean;
-    allowList: string;
+    /** VID:PID that must never be probed automatically. */
+    excludeList: string;
     /** The window, in seconds, during which an arrival may be probed (R4.8). */
     graceSeconds: number;
-    onchange: (next: { enabled: boolean; allowList: string }) => void;
+    onchange: (next: { enabled: boolean; excludeList: string }) => void;
     onclose: () => void;
   }
 
-  let { enabled, allowList, graceSeconds, onchange, onclose }: Props = $props();
+  let { enabled, excludeList, graceSeconds, onchange, onclose }: Props = $props();
 </script>
 
 <svelte:window onkeydown={(e) => e.key === "Escape" && onclose()} />
@@ -23,22 +24,22 @@
     <input
       type="checkbox"
       checked={enabled}
-      onchange={(e) => onchange({ enabled: e.currentTarget.checked, allowList })}
+      onchange={(e) => onchange({ enabled: e.currentTarget.checked, excludeList })}
     />
     <span>{t("settings.auto.label")}</span>
   </label>
   <p class="note">{t("settings.auto.note", { seconds: graceSeconds })}</p>
 
   <label class="field">
-    <span>{t("settings.allow.label")}</span>
+    <span>{t("settings.exclude.label")}</span>
     <input
       type="text"
-      value={allowList}
-      placeholder={t("settings.allow.placeholder")}
-      oninput={(e) => onchange({ enabled, allowList: e.currentTarget.value })}
+      value={excludeList}
+      placeholder={t("settings.exclude.placeholder")}
+      oninput={(e) => onchange({ enabled, excludeList: e.currentTarget.value })}
     />
   </label>
-  <p class="note">{t("settings.allow.note")}</p>
+  <p class="note">{t("settings.exclude.note")}</p>
 
   <p class="note warn">{t("settings.unsaved")}</p>
 
