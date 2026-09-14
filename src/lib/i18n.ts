@@ -52,7 +52,16 @@ const en = {
   "settings.exclude.note":
     "Everything else that has no serial number is identified on arrival. List the hardware that must not be disturbed — a USB-serial adapter wired to equipment rather than to a dev board, for instance. Devices that report a serial number are never probed automatically: they need no probe.",
   "settings.close": "Close",
-  "settings.unsaved": "Settings are not saved yet and reset when the app restarts.",
+  "settings.unsaved":
+    "The settings file could not be read, so nothing is being saved this session. See the log.",
+  "confidence.confirmed": "confirmed",
+  "confidence.confirmed.hint": "The device answered for itself, or reports a matching serial number.",
+  "confidence.probable": "probably",
+  "confidence.probable.hint":
+    "Recognised only because it is in the port it was last seen in. Identify it again to be sure.",
+  "confidence.ambiguous": "uncertain",
+  "confidence.ambiguous.hint":
+    "More than one stored device fits this port, so nothing is claimed. Identify it to settle it.",
 
   "empty.connected": "No USB devices are connected.",
   "empty.shared": "Nothing is shared with usbipd right now.",
@@ -62,13 +71,32 @@ const en = {
 
   "detail.select": "Select a device.",
   "detail.port": "Port",
-  "detail.location": "Location",
+  "detail.location": "Port chain",
+  "detail.location.hint":
+    "The chain of hub ports the device hangs off, derived from the physical topology rather than from the hub number Windows assigns — that one changes.",
+  "detail.problem": "Windows reports a problem with this device (code {code}).",
   "detail.driver": "Driver",
+  "detail.vidpid": "VID:PID",
+  "detail.vendor": "Vendor",
+  "detail.usb_product": "USB product",
+  "detail.from_usb_ids": "From the USB ID Repository (usb.ids), which does not list every vendor.",
   "detail.transport": "Transport",
   "detail.target": "Target",
   "detail.target.unknown": "Not identified yet. Identifying reads the board's own ID.",
   "detail.target.transport_only": "Identified down to the transport only.",
 
+  "menu.bind": "Share with usbipd",
+  "menu.unbind": "Stop sharing",
+  "menu.attach": "Attach to WSL",
+  "menu.detach": "Detach from WSL",
+  "menu.admin_suffix": " (administrator)",
+  "menu.busy": "Working…",
+  "busy.bind": "Sharing with usbipd…",
+  "busy.unbind": "Stopping sharing…",
+  "busy.attach": "Attaching to WSL…",
+  "busy.detach": "Detaching from WSL…",
+  "busy.probe": "Identifying…",
+  "busy.admin": "Waiting for the administrator prompt…",
   "menu.identify": "Identify…",
   "menu.copy_instance_id": "Copy instance ID",
   "menu.copy_identifier": "Copy identifier",
@@ -82,7 +110,6 @@ const en = {
   "probe.warning": "Running this affects the device.",
   "probe.cancel": "Cancel",
   "probe.run": "Identify",
-  "probe.running": "Identifying…",
 
   "probe.esp32.side_effect":
     "Resets the board into its ROM bootloader and then back, so the running firmware restarts.",
@@ -144,7 +171,16 @@ const ja: Record<Key, string> = {
   "settings.exclude.note":
     "ここに挙げたもの以外で、シリアル番号を持たないデバイスは接続時に識別されます。触られては困る機器を挙げてください（開発ボードではなく装置に繋がった USB シリアル変換など）。シリアル番号を持つデバイスは識別不要なので、自動識別の対象になりません。",
   "settings.close": "閉じる",
-  "settings.unsaved": "設定はまだ保存されません。再起動すると既定に戻ります。",
+  "settings.unsaved":
+    "設定ファイルを読めなかったため、今回は何も保存されません。ログを確認してください。",
+  "confidence.confirmed": "確定",
+  "confidence.confirmed.hint": "デバイス自身が答えたか、シリアル番号が一致しています。",
+  "confidence.probable": "たぶん",
+  "confidence.probable.hint":
+    "前回と同じポートに挿さっていることだけが根拠です。確実にするには識別し直してください。",
+  "confidence.ambiguous": "不確実",
+  "confidence.ambiguous.hint":
+    "このポートに該当する記録が複数あるため、断定していません。識別すれば確定します。",
 
   "empty.connected": "接続中の USB デバイスがありません。",
   "empty.shared": "usbipd で共有中のデバイスはありません。",
@@ -154,13 +190,32 @@ const ja: Record<Key, string> = {
 
   "detail.select": "デバイスを選択してください。",
   "detail.port": "ポート",
-  "detail.location": "物理位置",
+  "detail.location": "ポート",
+  "detail.location.hint":
+    "デバイスがぶら下がっているハブポートの連鎖です。Windows が振るハブ番号ではなく物理トポロジから導いているので、再認識で変わりません。",
+  "detail.problem": "Windows がこのデバイスに問題を報告しています（コード {code}）。",
   "detail.driver": "ドライバ",
+  "detail.vidpid": "VID:PID",
+  "detail.vendor": "ベンダー",
+  "detail.usb_product": "USB 製品名",
+  "detail.from_usb_ids": "USB ID Repository（usb.ids）の記載です。全ベンダーが登録しているわけではありません。",
   "detail.transport": "Transport",
   "detail.target": "Target",
   "detail.target.unknown": "未識別。識別するとボード自身の ID が判ります。",
   "detail.target.transport_only": "Transport までの識別に留まります。",
 
+  "menu.bind": "usbipd で共有する",
+  "menu.unbind": "共有をやめる",
+  "menu.attach": "WSL に接続する",
+  "menu.detach": "WSL から切り離す",
+  "menu.admin_suffix": "（管理者）",
+  "menu.busy": "実行中…",
+  "busy.bind": "usbipd で共有しています…",
+  "busy.unbind": "共有を解除しています…",
+  "busy.attach": "WSL に接続しています…",
+  "busy.detach": "WSL から切り離しています…",
+  "busy.probe": "識別しています…",
+  "busy.admin": "管理者の許可を待っています…",
   "menu.identify": "識別…",
   "menu.copy_instance_id": "インスタンス ID をコピー",
   "menu.copy_identifier": "識別子をコピー",
@@ -174,7 +229,6 @@ const ja: Record<Key, string> = {
   "probe.warning": "実行するとデバイスに影響があります。",
   "probe.cancel": "キャンセル",
   "probe.run": "識別する",
-  "probe.running": "識別中…",
 
   "probe.esp32.side_effect":
     "ボードを ROM ブートローダに入れてから戻します。動作中のファームウェアが再起動します。",

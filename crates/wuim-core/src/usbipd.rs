@@ -6,8 +6,10 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
+
+use crate::elevate::run_elevated;
 
 /// Default install location, used when usbipd is not on PATH.
 const DEFAULT_INSTALL_PATH: &str = r"C:\Program Files\usbipd-win\usbipd.exe";
@@ -89,6 +91,143 @@ impl SharingState {
     }
 }
 
+/// An operation usbipd can perform on a device.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Operation {
+    /// Make the device shareable. Changes system state, so it needs admin.
+    Bind,
+    /// Stop sharing it.
+    Unbind,
+    /// Hand the device to WSL.
+    Attach,
+    /// Take it back.
+    Detach,
+}
+
+impl Operation {
+    fn verb(self) -> &'static str {
+        match self {
+            Self::Bind => "bind",
+            Self::Unbind => "unbind",
+            Self::Attach => "attach",
+            Self::Detach => "detach",
+        }
+    }
+
+    /// Arguments beyond `--busid`.
+    ///
+    /// usbipd refuses `attach` without a client to hand the device to. `--wsl`
+    /// with no distribution named uses the default one, which is what usbipd
+    /// 5.x asks for — per-device distribution selection (requirement R6.2)
+    /// needs somewhere to store the choice and is not built yet.
+    fn extra_args(self) -> &'static [&'static str] {
+        match self {
+            Self::Attach => &["--wsl"],
+            _ => &[],
+        }
+    }
+
+    /// Whether the operation has to run elevated (requirements §5.2).
+    pub fn needs_admin(self) -> bool {
+        matches!(self, Self::Bind | Self::Unbind)
+    }
+}
+
+/// What a usbipd invocation actually did, for the caller to log.
+#[derive(Debug, Clone)]
+pub struct Executed {
+    /// The command line as it was issued, including the bus id that was
+    /// resolved for it.
+    pub command_line: String,
+    pub elevated: bool,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+/// Runs an operation against the device with this instance id.
+///
+/// The bus id is read from `usbipd state` immediately before the command is
+/// issued and never taken from anything the caller is holding (requirement
+/// R5.4): hub numbering shifts, so a bus id noted even seconds ago may now name
+/// a different device — and this operation would then hand *that* device to
+/// WSL.
+pub fn run(operation: Operation, instance_id: &str) -> Result<Executed> {
+    let devices = query()?;
+    let device = devices
+        .iter()
+        .find(|d| d.instance_id.eq_ignore_ascii_case(instance_id))
+        .ok_or_else(|| anyhow!("usbipd no longer knows about {instance_id}"))?;
+
+    let bus_id = device
+        .bus_id
+        .as_deref()
+        .ok_or_else(|| anyhow!("{} is not connected", device.description))?;
+    let bus_id = checked_bus_id(bus_id)?;
+
+    let exe = locate()?;
+    let extra = operation.extra_args();
+    let arguments = std::iter::once(operation.verb())
+        .chain(["--busid", bus_id])
+        .chain(extra.iter().copied())
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let command_line = format!("{} {arguments}", exe.display());
+
+    if operation.needs_admin() {
+        let code = run_elevated(&exe, &arguments)?;
+        if code != 0 {
+            bail!("`{command_line}` (elevated) exited with {code}");
+        }
+        // An elevated child writes to its own console, so there is nothing to
+        // capture beyond the exit code.
+        return Ok(Executed {
+            command_line,
+            elevated: true,
+            stdout: String::new(),
+            stderr: String::new(),
+        });
+    }
+
+    let output = command(&exe)
+        .args([operation.verb(), "--busid", bus_id])
+        .args(extra)
+        .output()
+        .with_context(|| format!("failed to run {}", exe.display()))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+    if !output.status.success() {
+        let detail = if stderr.is_empty() { &stdout } else { &stderr };
+        bail!("`{command_line}` failed: {detail}");
+    }
+    Ok(Executed {
+        command_line,
+        elevated: false,
+        stdout,
+        stderr,
+    })
+}
+
+/// Rejects anything that is not a plain `<hub>-<port>`.
+///
+/// The elevated path passes the bus id inside a command line rather than as an
+/// argument vector, so it is checked here rather than trusted because it came
+/// from usbipd a moment ago.
+fn checked_bus_id(bus_id: &str) -> Result<&str> {
+    let valid = bus_id.split_once('-').is_some_and(|(hub, port)| {
+        !hub.is_empty()
+            && !port.is_empty()
+            && hub.bytes().all(|b| b.is_ascii_digit())
+            && port.bytes().all(|b| b.is_ascii_digit())
+    });
+    if valid {
+        Ok(bus_id)
+    } else {
+        Err(anyhow!("usbipd reported an unusable bus id: {bus_id:?}"))
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct StateDocument {
@@ -120,6 +259,16 @@ pub fn parse(json: &str) -> Result<Vec<UsbipdDevice>> {
     let doc: StateDocument =
         serde_json::from_str(json).context("could not parse the JSON from usbipd state")?;
     Ok(doc.devices)
+}
+
+/// Where usbipd-win keeps its copy of `usb.ids`, next to the executable.
+///
+/// Only meaningful when usbipd was found at a real path; a bare `usbipd.exe`
+/// resolved through PATH gives no directory to look in.
+pub fn usb_ids_path() -> Option<PathBuf> {
+    let default = PathBuf::from(DEFAULT_INSTALL_PATH);
+    let candidate = default.parent()?.join("usb.ids");
+    candidate.is_file().then_some(candidate)
 }
 
 /// Decides which usbipd.exe to run: the default install location if it exists,
@@ -207,5 +356,34 @@ mod tests {
     #[test]
     fn missing_devices_array_is_an_error() {
         assert!(parse("{}").is_err());
+    }
+
+    #[test]
+    fn only_bind_and_unbind_need_admin() {
+        assert!(Operation::Bind.needs_admin());
+        assert!(Operation::Unbind.needs_admin());
+        assert!(!Operation::Attach.needs_admin());
+        assert!(!Operation::Detach.needs_admin());
+    }
+
+    #[test]
+    fn attach_names_a_client_to_hand_the_device_to() {
+        // usbipd refuses an attach with no client.
+        assert_eq!(Operation::Attach.extra_args(), &["--wsl"]);
+        assert!(Operation::Detach.extra_args().is_empty());
+        assert!(Operation::Bind.extra_args().is_empty());
+    }
+
+    #[test]
+    fn accepts_real_bus_ids() {
+        assert_eq!(checked_bus_id("10-1").unwrap(), "10-1");
+        assert_eq!(checked_bus_id("2-10").unwrap(), "2-10");
+    }
+
+    #[test]
+    fn rejects_anything_that_is_not_a_bus_id() {
+        for bad in ["", "10", "10-", "-1", "10-1 && calc", "a-1", "10-1-2"] {
+            assert!(checked_bus_id(bad).is_err(), "accepted {bad:?}");
+        }
     }
 }

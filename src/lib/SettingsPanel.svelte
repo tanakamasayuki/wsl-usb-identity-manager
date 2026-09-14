@@ -7,11 +7,13 @@
     excludeList: string;
     /** The window, in seconds, during which an arrival may be probed (R4.8). */
     graceSeconds: number;
+    /** False when the stored file was refused; nothing is being saved. */
+    writable: boolean;
     onchange: (next: { enabled: boolean; excludeList: string }) => void;
     onclose: () => void;
   }
 
-  let { enabled, excludeList, graceSeconds, onchange, onclose }: Props = $props();
+  let { enabled, excludeList, graceSeconds, writable, onchange, onclose }: Props = $props();
 </script>
 
 <svelte:window onkeydown={(e) => e.key === "Escape" && onclose()} />
@@ -41,7 +43,9 @@
   </label>
   <p class="note">{t("settings.exclude.note")}</p>
 
-  <p class="note warn">{t("settings.unsaved")}</p>
+  {#if !writable}
+    <p class="note warn">{t("settings.unsaved")}</p>
+  {/if}
 
   <div class="actions">
     <button onclick={onclose}>{t("settings.close")}</button>

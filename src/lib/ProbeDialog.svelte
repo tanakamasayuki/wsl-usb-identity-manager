@@ -5,18 +5,17 @@
   interface Props {
     device: DeviceView;
     probe: ProbeOption;
-    running: boolean;
     onconfirm: () => void;
     oncancel: () => void;
   }
 
-  let { device, probe, running, onconfirm, oncancel }: Props = $props();
+  let { device, probe, onconfirm, oncancel }: Props = $props();
 </script>
 
-<svelte:window onkeydown={(e) => e.key === "Escape" && !running && oncancel()} />
+<svelte:window onkeydown={(e) => e.key === "Escape" && oncancel()} />
 
 <!-- Requirement R4.7: the side effects are stated before anything happens. -->
-<div class="backdrop" role="presentation" onclick={() => !running && oncancel()}></div>
+<div class="backdrop" role="presentation" onclick={oncancel}></div>
 <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="probe-title">
   <h2 id="probe-title">{t("probe.title")}</h2>
 
@@ -35,10 +34,8 @@
   </p>
 
   <div class="actions">
-    <button onclick={oncancel} disabled={running}>{t("probe.cancel")}</button>
-    <button class="primary" onclick={onconfirm} disabled={running}>
-      {running ? t("probe.running") : t("probe.run")}
-    </button>
+    <button onclick={oncancel}>{t("probe.cancel")}</button>
+    <button class="primary" onclick={onconfirm}>{t("probe.run")}</button>
   </div>
 </div>
 

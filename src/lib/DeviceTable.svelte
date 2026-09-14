@@ -1,12 +1,10 @@
 <script lang="ts">
   import { t } from "./i18n";
-  import type { DeviceView, TargetIdentity } from "./types";
+  import type { DeviceView } from "./types";
 
   interface Props {
     devices: DeviceView[];
     selected: string | null;
-    /** Probe results so far, keyed by instance id. */
-    identities: Record<string, TargetIdentity>;
     /** Shown in place of the table when there is nothing to list. */
     empty: string;
     /** Devices with a probe in flight. */
@@ -16,8 +14,7 @@
     onidentify: (instanceId: string) => void;
   }
 
-  let { devices, selected, identities, empty, probing, onselect, onmenu, onidentify }: Props =
-    $props();
+  let { devices, selected, empty, probing, onselect, onmenu, onidentify }: Props = $props();
 
   /**
    * Transport and Target are separate columns because they are separate things
@@ -65,7 +62,7 @@
     <tbody>
       {#each devices as device (device.instanceId)}
         {@const tr = transport(device)}
-        {@const identity = identities[device.instanceId]}
+        {@const identity = device.identity}
         <tr
           class:selected={device.instanceId === selected}
           onclick={() => onselect(device.instanceId)}
@@ -86,7 +83,7 @@
                  not rename the device it is plugged into. -->
             <span class="primary">{device.name}</span>
             {#if identity}
-              <span class="secondary">{identity.device_type}</span>
+              <span class="secondary">{identity.deviceType}</span>
             {/if}
           </td>
           <td class="vidpid">{device.vidPid ?? "—"}</td>
@@ -95,7 +92,14 @@
           </td>
           <td class="target">
             {#if identity}
-              <span class="id known" title={t("target.hint")}>{identity.identity_key}</span>
+              <!-- Coloured by how much the match is worth: a device recognised
+                   only by the port it sits in is not the same claim as one that
+                   answered for itself (R4.3). -->
+              <span
+                class="id known {identity.confidence}"
+                title="{t('target.hint')} — {t(`confidence.${identity.confidence}.hint`)}"
+                >{identity.identityKey}</span
+              >
             {:else if probing.has(device.instanceId)}
               <span class="id pending">{t("target.identifying")}</span>
             {:else if identifiable(device)}
@@ -204,8 +208,18 @@
   }
 
   .target .id.known {
-    color: var(--ok);
     font-weight: 600;
+    color: var(--ok);
+  }
+
+  /* Recognised only by where it is plugged in, which the port outliving a
+     re-enumeration is the only thing holding up. */
+  .target .id.probable {
+    color: var(--accent);
+  }
+
+  .target .id.ambiguous {
+    color: var(--warn);
   }
 
   .id.pending {

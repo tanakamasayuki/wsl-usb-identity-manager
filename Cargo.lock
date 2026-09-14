@@ -4950,6 +4950,7 @@ name = "wsl-usb-identity-manager"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "jiff",
  "serde",
  "serde_json",
  "tauri",
@@ -4973,6 +4974,7 @@ name = "wuim-core"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "jiff",
  "serde",
  "serde_json",
  "windows 0.62.2",

@@ -14,9 +14,10 @@ use windows::Win32::Devices::DeviceAndDriverInstallation::{
 };
 use windows::Win32::Devices::Properties::{
     DEVPKEY_Device_BusReportedDeviceDesc, DEVPKEY_Device_ContainerId, DEVPKEY_Device_DeviceDesc,
-    DEVPKEY_Device_FriendlyName, DEVPKEY_Device_LocationPaths, DEVPKEY_Device_Manufacturer,
+    DEVPKEY_Device_DriverVersion, DEVPKEY_Device_FriendlyName, DEVPKEY_Device_HardwareIds,
+    DEVPKEY_Device_LocationPaths, DEVPKEY_Device_Manufacturer, DEVPKEY_Device_ProblemCode,
     DEVPKEY_Device_Service, DEVPROP_TYPE_GUID, DEVPROP_TYPE_STRING, DEVPROP_TYPE_STRING_LIST,
-    DEVPROPTYPE,
+    DEVPROP_TYPE_UINT32, DEVPROPTYPE,
 };
 use windows::Win32::Foundation::DEVPROPKEY;
 use windows::Win32::System::Registry::{HKEY, KEY_READ, REG_SZ, RegCloseKey, RegQueryValueExW};
@@ -46,6 +47,15 @@ pub struct WinUsbDevice {
     pub location_paths: Vec<String>,
     /// COM number, for display only (R7.1).
     pub com_port: Option<String>,
+    /// The device revision the descriptor reports, from the `REV_xxxx` in the
+    /// hardware IDs, as `2.64`.
+    pub revision: Option<String>,
+    /// The bound driver's version, which is what a driver problem usually comes
+    /// down to.
+    pub driver_version: Option<String>,
+    /// Non-zero when Windows has a problem with the device — the yellow warning
+    /// in Device Manager. Explains a device that enumerates but does not work.
+    pub problem_code: Option<u32>,
 }
 
 impl WinUsbDevice {
@@ -67,6 +77,17 @@ impl WinUsbDevice {
             .or(self.bus_reported_device_desc.as_deref())
             .or(self.device_desc.as_deref())
             .unwrap_or(&self.instance_id.raw)
+    }
+
+    /// The chain of hub ports leading to the device, as `1-3-3`.
+    ///
+    /// Derived from `LocationPaths` rather than from `LocationInfo`, which
+    /// reads `Port_#0003.Hub_#0010` — that hub number is the dynamic one that
+    /// finding F1 showed cannot be trusted. The port chain uses only the
+    /// physical topology, so it survives a re-enumeration and is short enough
+    /// to read off while looking for the right socket.
+    pub fn port_chain(&self) -> Option<String> {
+        port_chain(self.location_paths.first()?)
     }
 
     /// Whether interface 0 is bound to WinUSB, a precondition for the WCH-Link probe.
@@ -171,6 +192,9 @@ fn load_device(instance_id: &str) -> Option<WinUsbDevice> {
         container_id: prop_container_id(devinst),
         location_paths: prop_string_list(devinst, &DEVPKEY_Device_LocationPaths),
         com_port: find_com_port(devinst),
+        revision: revision(devinst),
+        driver_version: prop_string(devinst, &DEVPKEY_Device_DriverVersion),
+        problem_code: prop_u32(devinst, &DEVPKEY_Device_ProblemCode).filter(|&c| c != 0),
     })
 }
 
@@ -217,6 +241,49 @@ fn prop_string(devinst: u32, key: &DEVPROPKEY) -> Option<String> {
     let decoded = decode_utf16(&buf);
     let trimmed = decoded.trim_end_matches('\0').trim();
     (!trimmed.is_empty()).then(|| trimmed.to_owned())
+}
+
+fn prop_u32(devinst: u32, key: &DEVPROPKEY) -> Option<u32> {
+    let (ty, buf) = prop_raw(devinst, key)?;
+    if ty != DEVPROP_TYPE_UINT32 || buf.len() < 4 {
+        return None;
+    }
+    Some(u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]))
+}
+
+/// Pulls `REV_0264` out of the hardware IDs and renders it as `2.64`.
+///
+/// `bcdDevice` is binary-coded decimal, so the digits are read as written
+/// rather than converted from hex.
+fn revision(devinst: u32) -> Option<String> {
+    prop_string_list(devinst, &DEVPKEY_Device_HardwareIds)
+        .iter()
+        .find_map(|id| bcd_revision(id))
+}
+
+fn bcd_revision(hardware_id: &str) -> Option<String> {
+    let rest = hardware_id.split("&REV_").nth(1)?;
+    let digits: String = rest.chars().take_while(|c| c.is_ascii_hexdigit()).collect();
+    if digits.len() != 4 || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    Some(format!(
+        "{}.{}",
+        digits[..2].trim_start_matches('0'),
+        &digits[2..]
+    ))
+}
+
+/// Extracts `1-3-3` from `PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(1)#USB(3)#USB(3)`.
+///
+/// Only the hub ports after the root hub are kept; the PCI part names the
+/// controller, which the user cannot see on the desk.
+fn port_chain(location_path: &str) -> Option<String> {
+    let ports: Vec<&str> = location_path
+        .split('#')
+        .filter_map(|part| part.strip_prefix("USB(")?.strip_suffix(')'))
+        .collect();
+    (!ports.is_empty()).then(|| ports.join("-"))
 }
 
 fn prop_string_list(devinst: u32, key: &DEVPROPKEY) -> Vec<String> {
@@ -403,6 +470,37 @@ mod tests {
             strip_com_suffix("Hub (COM3) downstream"),
             "Hub (COM3) downstream"
         );
+    }
+
+    #[test]
+    fn reads_a_port_chain_off_a_location_path() {
+        assert_eq!(
+            port_chain("PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(1)#USB(3)#USB(3)").as_deref(),
+            Some("1-3-3")
+        );
+        // Straight into a root-hub port.
+        assert_eq!(
+            port_chain("PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(7)").as_deref(),
+            Some("7")
+        );
+        // Not a USB path at all.
+        assert_eq!(port_chain("PCIROOT(0)#PCI(1400)"), None);
+    }
+
+    #[test]
+    fn reads_a_bcd_revision_out_of_a_hardware_id() {
+        assert_eq!(
+            bcd_revision(r"USB\VID_1A86&PID_7523&REV_0264").as_deref(),
+            Some("2.64")
+        );
+        assert_eq!(
+            bcd_revision(r"USB\VID_1A86&PID_55D3&REV_0443").as_deref(),
+            Some("4.43")
+        );
+        // The plain hardware id carries no revision.
+        assert_eq!(bcd_revision(r"USB\VID_1A86&PID_7523"), None);
+        // bcdDevice is decimal digits; anything else is not a revision.
+        assert_eq!(bcd_revision(r"USB\VID_0001&PID_0002&REV_0A1B"), None);
     }
 
     #[test]

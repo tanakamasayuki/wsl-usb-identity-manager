@@ -1,11 +1,19 @@
 <script lang="ts">
+  import BusyOverlay from "./lib/BusyOverlay.svelte";
   import ContextMenu from "./lib/ContextMenu.svelte";
   import DeviceTable from "./lib/DeviceTable.svelte";
   import ProbeDialog from "./lib/ProbeDialog.svelte";
   import SettingsPanel from "./lib/SettingsPanel.svelte";
-  import { listDevices, probeDevice } from "./lib/api";
+  import {
+    listDevices,
+    log,
+    probeDevice,
+    readSettings,
+    runOperation,
+    writeSettings,
+  } from "./lib/api";
   import { t } from "./lib/i18n";
-  import type { DeviceView, ProbeOption, TargetIdentity } from "./lib/types";
+  import type { DeviceView, Operation, ProbeOption } from "./lib/types";
 
   /**
    * One list with tabs, rather than a table per state.
@@ -31,16 +39,21 @@
   let filter = $state<Filter>("connected");
   let toast = $state<string | null>(null);
 
-  /**
-   * Probe results, keyed by instance id.
-   *
-   * In memory only for now: the persistence layer of requirements §7 is not
-   * built yet, so these are lost on restart.
-   */
-  let identities = $state<Record<string, TargetIdentity>>({});
   let probeTarget = $state<{ device: DeviceView; probe: ProbeOption } | null>(null);
-  let probing = $state(false);
   let menu = $state<{ device: DeviceView; x: number; y: number } | null>(null);
+  /**
+   * The operation the user asked for and is now waiting on.
+   *
+   * Set only for operations the user started. While it is set the window is
+   * covered by a modal overlay: an attach takes seconds, and every other button
+   * on screen would act on a state that is in the middle of changing.
+   *
+   * An automatic probe deliberately does not set this. The user did not ask for
+   * it, so taking the window away from them would be worse than the small risk
+   * of a click landing during the second it takes; the row shows its own
+   * progress instead.
+   */
+  let busy = $state<string | null>(null);
   let probingIds = $state(new Set<string>());
   let settingsOpen = $state(false);
 
@@ -62,6 +75,10 @@
   let autoIdentify = $state(true);
   /** VID:PID never probed automatically. Empty means nothing is excluded. */
   let autoExcludeList = $state("");
+  /** False when the stored file was refused, so nothing is being saved. */
+  let settingsWritable = $state(true);
+  /** Set once the saved settings have arrived, so they are not saved back over. */
+  let settingsLoaded = $state(false);
 
   const GRACE_SECONDS = 10;
 
@@ -82,6 +99,12 @@
   );
   const shown = $derived(devices.filter(FILTERS.find((f) => f.id === filter)!.match));
 
+  /** Records a failure and shows it. Everything that fails goes through here. */
+  function fail(what: string, e: unknown) {
+    error = String(e);
+    log("error", `${what}: ${error}`);
+  }
+
   async function refresh() {
     try {
       const next = await listDevices();
@@ -91,7 +114,7 @@
       noteArrivals(next);
       error = null;
     } catch (e) {
-      error = String(e);
+      fail("listing devices", e);
     }
   }
 
@@ -140,7 +163,8 @@
   function autoEligible(device: DeviceView): boolean {
     // A device that reports a serial needs no probe (R4.8).
     if (device.serial) return false;
-    if (identities[device.instanceId]) return false;
+    // Already known, whether from this session or from the stored file.
+    if (device.identity) return false;
     if (device.vidPid && excluded().has(device.vidPid)) return false;
     return device.probes.some((p) => p.available);
   }
@@ -174,7 +198,7 @@
         const [item] = pending.splice(ready, 1);
         const device = devices.find((d) => d.instanceId === item.instanceId)!;
         const probe = device.probes.find((p) => p.available)!;
-        await identify(item.instanceId, probe.family);
+        await identify(item.instanceId, probe.family, false);
       }
     } finally {
       draining = false;
@@ -182,26 +206,49 @@
   }
 
   /** Runs one probe and records the result. Shared by manual and automatic paths. */
-  async function identify(instanceId: string, family: string) {
+  /**
+   * Runs one probe and records the result.
+   *
+   * `announce` covers the window while it runs. True when the user pressed a
+   * button, false when the arrival queue started it by itself.
+   */
+  async function identify(instanceId: string, family: string, announce: boolean) {
     probingIds = new Set(probingIds).add(instanceId);
+    if (announce) busy = t("busy.probe");
     try {
-      identities[instanceId] = await probeDevice(instanceId, family);
+      await probeDevice(instanceId, family);
       error = null;
     } catch (e) {
-      error = String(e);
+      fail(`identifying ${instanceId}`, e);
     } finally {
       const next = new Set(probingIds);
       next.delete(instanceId);
       probingIds = next;
+      if (announce) busy = null;
       await refresh();
     }
   }
 
   $effect(() => {
+    readSettings()
+      .then((stored) => {
+        autoIdentify = stored.settings.autoIdentify;
+        autoExcludeList = stored.settings.autoExclude.join(", ");
+        settingsWritable = stored.writable;
+        settingsLoaded = true;
+        log("info", `settings from ${stored.path}`);
+      })
+      .catch((e) => fail("reading the settings", e));
+
     refresh();
     // Polling stands in for the device-change notifications of requirement
     // R8.1. It is safe because listing never probes (R4.6).
-    const timer = setInterval(refresh, 2000);
+    //
+    // Suspended while an operation runs: usbipd is busy with that, and a reply
+    // that arrives mid-attach describes a state that is already gone.
+    const timer = setInterval(() => {
+      if (!busy) refresh();
+    }, 2000);
     return () => clearInterval(timer);
   });
 
@@ -221,13 +268,44 @@
   async function runProbe() {
     if (!probeTarget) return;
     const { device, probe } = probeTarget;
-    probing = true;
+    // Close first: the overlay below reports progress, so keeping the dialog up
+    // with its own spinner would stack two answers to the same question.
+    probeTarget = null;
+    await identify(device.instanceId, probe.family, true);
+  }
+
+  /**
+   * Runs a usbipd operation.
+   *
+   * Only one at a time: bind and unbind raise a UAC prompt, and a second prompt
+   * stacking behind the first is not something the user can make sense of.
+   */
+  async function operate(device: DeviceView, operation: Operation) {
+    if (busy) return;
+    // Bind and unbind stop at a UAC prompt first, which is what the user is
+    // actually waiting on.
+    busy = t(
+      operation === "bind" || operation === "unbind" ? "busy.admin" : `busy.${operation}`,
+    );
     try {
-      await identify(device.instanceId, probe.family);
+      devices = await runOperation(device.instanceId, operation);
+      error = null;
+    } catch (e) {
+      fail(`${operation} on ${device.instanceId}`, e);
     } finally {
-      probing = false;
-      probeTarget = null;
+      busy = null;
     }
+  }
+
+  /** The operations to offer for a device, in the order they are usually used. */
+  function operations(device: DeviceView): { id: Operation; label: string }[] {
+    const ADMIN: Operation[] = ["bind", "unbind"];
+    return (["bind", "attach", "detach", "unbind"] as Operation[])
+      .filter((id) => device.actions[id])
+      .map((id) => ({
+        label: t(`menu.${id}`) + (ADMIN.includes(id) ? t("menu.admin_suffix") : ""),
+        id,
+      }));
   }
 
   async function copy(text: string) {
@@ -236,7 +314,7 @@
       toast = t("menu.copied");
       setTimeout(() => (toast = null), 1400);
     } catch (e) {
-      error = String(e);
+      fail("copying to the clipboard", e);
     }
   }
 
@@ -244,8 +322,13 @@
     if (!menu) return [];
     const device = menu.device;
     const outcome = probeFor(device);
-    const identity = identities[device.instanceId];
+    const identity = device.identity;
     return [
+      ...operations(device).map((op) => ({
+        label: op.label,
+        disabledReason: busy,
+        action: () => operate(device, op.id),
+      })),
       {
         label: t("menu.identify"),
         disabledReason: "reason" in outcome ? outcome.reason : null,
@@ -258,7 +341,7 @@
       {
         label: t("menu.copy_identifier"),
         disabledReason: identity || device.serial ? null : t("menu.nothing_to_copy"),
-        action: () => copy(identity?.identity_key ?? device.serial ?? ""),
+        action: () => copy(identity?.identityKey ?? device.serial ?? ""),
       },
     ];
   });
@@ -292,7 +375,6 @@
     <DeviceTable
       devices={shown}
       selected={selectedId}
-      {identities}
       probing={probingIds}
       empty={t(`empty.${filter}`)}
       onselect={(id) => (selectedId = id)}
@@ -307,27 +389,58 @@
     />
   </div>
 
+  {#if error}
+    <p class="error">{error}</p>
+  {/if}
+
   <!-- Fixed height: selecting a device must not resize the list above it. -->
   <footer>
     {#if selected}
-      {@const identity = identities[selected.instanceId]}
+      {@const identity = selected.identity}
       {@const outcome = probeFor(selected)}
       <div class="detail">
         <div class="detail-head">
           <strong>{selected.name}</strong>
           {#if identity}
-            <span class="type">{identity.device_type}</span>
+            <span class="type">{identity.deviceType}</span>
           {/if}
           <code>{selected.instanceId}</code>
         </div>
 
+        <!--
+          Two columns of pairs rather than one: the USB identifiers had to fit
+          without the pane growing downwards, and the list above it is worth
+          more rows than this is.
+        -->
         <dl>
           <dt>{t("detail.port")}</dt>
           <dd>{selected.busId ?? "—"} / {selected.comPort ?? "—"}</dd>
+          <dt>{t("detail.vidpid")}</dt>
+          <dd>
+            <code>{selected.vidPid ?? "—"}</code>
+            {#if selected.revision}
+              <span class="note">rev {selected.revision}</span>
+            {/if}
+          </dd>
+
           <dt>{t("detail.location")}</dt>
-          <dd><code>{selected.locationPath ?? "—"}</code></dd>
+          <dd class="wide" title={t("detail.location.hint")}>
+            <code>{selected.portChain ?? "—"}</code>
+            <span class="note">{selected.locationPath ?? ""}</span>
+          </dd>
+
           <dt>{t("detail.driver")}</dt>
-          <dd>{selected.driver ?? "—"}</dd>
+          <dd>
+            {selected.driver ?? "—"}
+            {#if selected.driverVersion}
+              <span class="note">{selected.driverVersion}</span>
+            {/if}
+          </dd>
+          <dt>{t("detail.vendor")}</dt>
+          <dd title={selected.vendor ? t("detail.from_usb_ids") : undefined}>
+            {selected.vendor ?? "—"}
+          </dd>
+
           <dt>{t("detail.transport")}</dt>
           <dd>
             {#if selected.serial}
@@ -336,11 +449,23 @@
               <span class="note" title={t("transport.none.hint")}>{t("transport.none")}</span>
             {/if}
           </dd>
+          <dt>{t("detail.usb_product")}</dt>
+          <dd title={selected.usbProduct ? t("detail.from_usb_ids") : undefined}>
+            {selected.usbProduct ?? "—"}
+          </dd>
+
           <dt>{t("detail.target")}</dt>
-          <dd>
+          <dd class="wide">
+            {#if selected.problemCode !== null}
+              <span class="problem"
+                >{t("detail.problem", { code: selected.problemCode })}</span
+              >
+            {/if}
             {#if identity}
-              <code class="key">{identity.identity_key}</code>
-              <span class="note">{identity.device_type} / {identity.device_id}</span>
+              <code class="key">{identity.identityKey}</code>
+              <span class="note">
+                {t(`confidence.${identity.confidence}`)} · {identity.deviceId}
+              </span>
             {:else if selected.needsProbe}
               <span class="note">{t("detail.target.unknown")}</span>
             {:else}
@@ -351,9 +476,12 @@
       </div>
 
       <div class="detail-actions">
-        {#if "reason" in outcome}
-          <span class="note wrap">{outcome.reason}</span>
-        {:else}
+        {#each operations(selected) as op (op.id)}
+          <button disabled={busy !== null} onclick={() => operate(selected, op.id)}>
+            {op.label}
+          </button>
+        {/each}
+        {#if !("reason" in outcome)}
           <button class="primary" onclick={() => startProbe(selected)}>
             {t("menu.identify")}
           </button>
@@ -363,10 +491,6 @@
       <p class="note">{t("detail.select")}</p>
     {/if}
   </footer>
-
-  {#if error}
-    <p class="error">{error}</p>
-  {/if}
 </main>
 
 {#if toast}
@@ -382,9 +506,15 @@
     enabled={autoIdentify}
     excludeList={autoExcludeList}
     graceSeconds={GRACE_SECONDS}
+    writable={settingsWritable}
     onchange={(next) => {
       autoIdentify = next.enabled;
       autoExcludeList = next.excludeList;
+      if (!settingsLoaded) return;
+      void writeSettings({
+        autoIdentify,
+        autoExclude: [...excluded()],
+      }).catch((e) => fail("saving the settings", e));
     }}
     onclose={() => (settingsOpen = false)}
   />
@@ -394,10 +524,14 @@
   <ProbeDialog
     device={probeTarget.device}
     probe={probeTarget.probe}
-    running={probing}
     onconfirm={runProbe}
     oncancel={() => (probeTarget = null)}
   />
+{/if}
+
+<!-- Last, so it sits over everything else including the dialogs. -->
+{#if busy}
+  <BusyOverlay what={busy} />
 {/if}
 
 <style>
@@ -492,7 +626,10 @@
     border-top: 1px solid var(--border);
     background: var(--bg-header);
     display: grid;
-    grid-template-columns: 1fr 190px;
+    /* Fixed, not `auto`: the number of buttons changes with the device, and
+       an auto column would resize the detail area — moving the VID:PID and
+       vendor columns sideways every time the selection changed. */
+    grid-template-columns: minmax(0, 1fr) 344px;
     gap: 12px;
     align-items: start;
   }
@@ -519,10 +656,15 @@
 
   dl {
     display: grid;
-    grid-template-columns: 76px 1fr;
+    grid-template-columns: 76px minmax(0, 1fr) 82px minmax(0, 1fr);
     gap: 3px 12px;
     margin: 0;
     font-size: 12px;
+  }
+
+  /* Values that are long enough to deserve the whole row. */
+  dd.wide {
+    grid-column: 2 / -1;
   }
 
   dt {
@@ -551,25 +693,30 @@
     font-size: 12px;
   }
 
-  .note.wrap {
-    white-space: normal;
-    line-height: 1.5;
-    text-align: right;
+  .problem {
+    color: var(--danger);
+    margin-right: 8px;
   }
 
   .detail-actions {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
+    gap: 6px;
   }
 
+  /* Above the footer, not after it: the footer has a fixed height, so an
+     error appended below it was pushed out of the window. */
   .error {
     flex: 0 0 auto;
     margin: 0;
     padding: 8px 14px;
     font-size: 12px;
+    line-height: 1.5;
     color: var(--danger);
     background: color-mix(in srgb, var(--danger) 10%, transparent);
     border-top: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+    user-select: text;
   }
 
   .toast {
