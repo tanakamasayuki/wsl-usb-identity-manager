@@ -137,11 +137,17 @@ impl Snapshot {
         let mut other_nodes: Vec<WinUsbDevice> = by_instance.into_values().collect();
         other_nodes.sort_by(|a, b| a.instance_id.raw.cmp(&b.instance_id.raw));
 
-        // Connected devices first, by name; everything absent goes to the end.
+        // Connected devices first, then by bus id, then by name.
+        //
+        // Bus id order puts devices in the order they hang off the hubs, which
+        // is how the user sees them on the desk: everything on one hub lands
+        // together. Sorting by name instead scatters identical adapters, which
+        // are exactly the ones that need telling apart.
         devices.sort_by(|a, b| {
             let key = |r: &DeviceRow| {
                 (
                     !r.usbipd.as_ref().is_some_and(UsbipdDevice::is_connected),
+                    bus_id_order(r.bus_id()),
                     r.name.to_lowercase(),
                     r.instance_id.raw.clone(),
                 )
@@ -182,6 +188,21 @@ impl Snapshot {
         out.sort_by(|a, b| a.0.cmp(&b.0));
         out
     }
+}
+
+/// Sort key for a bus id such as `8-1`.
+///
+/// The parts are compared as numbers, so `8-10` follows `8-9` instead of
+/// sorting between `8-1` and `8-2`. An unparseable or absent bus id sorts last.
+fn bus_id_order(bus_id: Option<&str>) -> (u32, u32) {
+    let Some(bus_id) = bus_id else {
+        return (u32::MAX, u32::MAX);
+    };
+    let (hub, port) = bus_id.split_once('-').unwrap_or((bus_id, ""));
+    (
+        hub.parse().unwrap_or(u32::MAX),
+        port.parse().unwrap_or(u32::MAX),
+    )
 }
 
 #[cfg(test)]
@@ -242,6 +263,27 @@ mod tests {
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0].0, "1a86:7523");
         assert_eq!(groups[0].1.len(), 2);
+    }
+
+    #[test]
+    fn bus_ids_sort_numerically() {
+        assert!(bus_id_order(Some("8-2")) < bus_id_order(Some("8-10")));
+        assert!(bus_id_order(Some("2-7")) < bus_id_order(Some("8-1")));
+        assert!(bus_id_order(Some("9-4")) < bus_id_order(None));
+        // An unparseable bus id ties with an absent one, and both sort last.
+        // The tie is harmless: a device with a bus id is connected, so the
+        // connected/absent key has already separated it from the absent ones.
+        assert_eq!(bus_id_order(Some("odd")), bus_id_order(None));
+    }
+
+    #[test]
+    fn rows_sort_by_bus_id_not_by_name() {
+        // Same model, so the name cannot decide the order.
+        let later = usbipd_entry(r"USB\VID_1A86&PID_7523\8&A&0&1", Some("8-3"), None);
+        let earlier = usbipd_entry(r"USB\VID_1A86&PID_7523\8&A&0&2", Some("8-1"), None);
+        let snapshot = Snapshot::join(Vec::new(), vec![later, earlier]);
+        assert_eq!(snapshot.devices[0].bus_id(), Some("8-1"));
+        assert_eq!(snapshot.devices[1].bus_id(), Some("8-3"));
     }
 
     #[test]

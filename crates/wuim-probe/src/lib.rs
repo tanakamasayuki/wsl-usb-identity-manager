@@ -22,23 +22,64 @@ use anyhow::Result;
 use serde::Serialize;
 use wuim_core::windevice::WinUsbDevice;
 
+/// A message this crate produces for a person to read.
+///
+/// It carries a stable `code` rather than only prose, because the GUI is
+/// translated and matching on English sentences to translate them breaks the
+/// moment the wording is edited. `en` is the same message for logs and the CLI,
+/// which are not translated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct Note {
+    /// Translation key, e.g. `probe.blocked.no_com_port`.
+    pub code: &'static str,
+    pub en: &'static str,
+}
+
+impl std::fmt::Display for Note {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.en)
+    }
+}
+
 /// What a probe can say about a device *before* touching it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(tag = "status", content = "reason", rename_all = "snake_case")]
 pub enum Applicability {
     /// This probe recognises the device and can attempt it.
     Supported,
     /// Another family's business, or not a board at all.
-    NotApplicable(&'static str),
+    NotApplicable(Note),
     /// The right family, but something has to be resolved first — a driver to
-    /// assign, an attach to release. The reason is meant to be shown verbatim.
-    Blocked(String),
+    /// assign, an attach to release.
+    Blocked(Note),
 }
 
 impl Applicability {
     pub fn is_supported(&self) -> bool {
         matches!(self, Self::Supported)
     }
+
+    /// The message behind a negative verdict, if there is one.
+    pub fn note(&self) -> Option<Note> {
+        match self {
+            Self::Supported => None,
+            Self::NotApplicable(note) | Self::Blocked(note) => Some(*note),
+        }
+    }
+}
+
+/// Reasons shared by every probe, so the UI only has to translate them once.
+pub mod notes {
+    use super::Note;
+
+    pub const NOT_CONNECTED: Note = Note {
+        code: "probe.blocked.not_connected",
+        en: "the device is not connected",
+    };
+    pub const ATTACHED: Note = Note {
+        code: "probe.blocked.attached",
+        en: "attached to WSL, so Windows cannot reach the device",
+    };
 }
 
 /// What a successful probe learned about the target.
@@ -68,7 +109,7 @@ pub trait TargetProbe: Send + Sync {
     ///
     /// Requirement R4.7 requires showing this before running a probe, so every
     /// implementation has to be able to state its own side effects.
-    fn side_effect(&self) -> &'static str;
+    fn side_effect(&self) -> Note;
 
     /// Decides whether the probe can be attempted. Must not touch the device.
     fn applicability(&self, device: &WinUsbDevice) -> Applicability;

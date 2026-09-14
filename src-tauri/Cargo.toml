@@ -1,0 +1,23 @@
+[package]
+name = "wsl-usb-identity-manager"
+description = "Track which physical device is which when forwarding USB devices to WSL"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "wsl-usb-identity-manager"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+wuim-core = { path = "../crates/wuim-core" }
+wuim-probe = { path = "../crates/wuim-probe" }
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tauri = { version = "2", features = [] }

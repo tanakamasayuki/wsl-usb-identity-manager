@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/wuim-core", "crates/wuim-probe", "crates/wuim-cli"]
+members = ["crates/wuim-core", "crates/wuim-probe", "crates/wuim-cli", "src-tauri"]
 
 [workspace.package]
 version = "0.0.0"

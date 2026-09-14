@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the main window is allowed to do. Kept to the core set: every privileged operation goes through a command in this crate rather than a plugin the frontend can call directly.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

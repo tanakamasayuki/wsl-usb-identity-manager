@@ -15,7 +15,7 @@ use serialport::{FlowControl, UsbPortInfo};
 use wuim_core::windevice::WinUsbDevice;
 
 use crate::identity::{esp_variant, identity_key};
-use crate::{Applicability, TargetIdentity, TargetProbe};
+use crate::{Applicability, Note, TargetIdentity, TargetProbe};
 
 /// The ROM loader answers at 115200 baud; there is no reason to go faster for a
 /// handful of register reads.
@@ -32,15 +32,21 @@ impl TargetProbe for Esp32Probe {
         "esp32"
     }
 
-    fn side_effect(&self) -> &'static str {
-        "Resets the board into its ROM bootloader and then back, so the running firmware restarts."
+    fn side_effect(&self) -> Note {
+        Note {
+            code: "probe.esp32.side_effect",
+            en: "Resets the board into its ROM bootloader and then back, so the running firmware restarts.",
+        }
     }
 
     fn applicability(&self, device: &WinUsbDevice) -> Applicability {
         if device.com_port.is_none() {
             // Either the board is behind something that is not a serial port, or
             // its driver is not loaded. Either way there is nothing to talk to.
-            return Applicability::NotApplicable("no COM port");
+            return Applicability::NotApplicable(Note {
+                code: "probe.blocked.no_com_port",
+                en: "no COM port, so there is no serial line to talk over",
+            });
         }
         Applicability::Supported
     }

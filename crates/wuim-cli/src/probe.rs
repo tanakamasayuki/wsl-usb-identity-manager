@@ -49,12 +49,12 @@ pub fn run(args: &[String]) -> Result<()> {
         .into_iter()
         .filter_map(|(probe, verdict)| match verdict {
             Applicability::Supported => Some(probe),
-            Applicability::NotApplicable(reason) => {
-                println!("  skipping {}: {reason}", probe.family());
+            Applicability::NotApplicable(note) => {
+                println!("  skipping {}: {note}", probe.family());
                 None
             }
-            Applicability::Blocked(reason) => {
-                println!("  {} is blocked: {reason}", probe.family());
+            Applicability::Blocked(note) => {
+                println!("  {} is blocked: {note}", probe.family());
                 None
             }
         })

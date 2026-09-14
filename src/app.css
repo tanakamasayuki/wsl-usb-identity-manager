@@ -1,0 +1,94 @@
+/* Light and dark are both driven by the OS, since a system utility that
+   ignores the desktop theme looks out of place next to Device Manager. */
+:root {
+  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --bg: #ffffff;
+  --bg-header: #f5f6f8;
+  --bg-hover: #eceef1;
+  --bg-selected: #d8e6f5;
+  --border: #d0d4da;
+  --border-subtle: #e8eaee;
+  --fg: #14181d;
+  --fg-muted: #5d6672;
+  --fg-faint: #9aa2ad;
+  --accent: #2f6fd0;
+  --ok: #197a4b;
+  --warn: #a76500;
+  --danger: #c02a2a;
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #10161d;
+    --bg-header: #171f28;
+    --bg-hover: #1f2934;
+    --bg-selected: #24384f;
+    --border: #2b3641;
+    --border-subtle: #1c242d;
+    --fg: #e2e8f0;
+    --fg-muted: #94a1b2;
+    --fg-faint: #5d6b7a;
+    --accent: #5aa2f0;
+    --ok: #4ec98a;
+    --warn: #e0a33c;
+    --danger: #f07070;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "Yu Gothic UI", "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  /* A device list is not text the user selects; dragging across it should
+     select rows, not characters. */
+  user-select: none;
+}
+
+code {
+  font-family: var(--mono);
+  user-select: text;
+}
+
+button {
+  font: inherit;
+  padding: 5px 12px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button.primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+  background: var(--accent);
+}
