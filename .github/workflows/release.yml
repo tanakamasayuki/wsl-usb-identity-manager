@@ -98,6 +98,46 @@ jobs:
           # workspace packages, so no dependency is silently upgraded here.
           cargo update --workspace
 
+      - name: Close the changelog section
+        id: changelog
+        if: ${{ !inputs.dry_run }}
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.next }}'
+          $date = Get-Date -Format 'yyyy-MM-dd'
+          $lines = Get-Content CHANGELOG.md
+
+          # `## Unreleased` stays where it is and a dated heading for this
+          # version is opened under it, so what was unreleased a moment ago is
+          # now filed under the version that carries it.
+          $index = -1
+          for ($i = 0; $i -lt $lines.Length; $i++) {
+            if ($lines[$i].Trim() -eq '## Unreleased') { $index = $i; break }
+          }
+          if ($index -lt 0) {
+            throw 'CHANGELOG.md has no "## Unreleased" heading to close'
+          }
+
+          $rest = if ($index + 1 -le $lines.Length - 1) { $lines[($index + 1)..($lines.Length - 1)] } else { @() }
+          $heading = "## $version - $date"
+          Set-Content CHANGELOG.md -Value (@($lines[0..$index]) + @('', $heading) + @($rest))
+
+          # The notes for the release are what was written under Unreleased.
+          # Nothing is invented from commit subjects: the changelog is the
+          # record a person wrote for other people to read.
+          $notes = @()
+          foreach ($line in $rest) {
+            if ($line -match '^## ') { break }
+            $notes += $line
+          }
+          $notes = ($notes -join "`n").Trim()
+          if ([string]::IsNullOrWhiteSpace($notes)) {
+            Write-Host '::warning::Nothing was listed under "## Unreleased"'
+            $notes = "Release $version."
+          }
+          Set-Content release-notes.md -Value $notes
+          "notes=release-notes.md" >> $env:GITHUB_OUTPUT
+
       - name: Commit the bump
         id: commit
         if: ${{ !inputs.dry_run }}
@@ -105,7 +145,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add Cargo.toml Cargo.lock
+          git add Cargo.toml Cargo.lock CHANGELOG.md
           git commit -m 'chore: release v${{ steps.version.outputs.next }}'
           git push
           "sha=$(git rev-parse HEAD)" >> $env:GITHUB_OUTPUT
@@ -163,7 +203,7 @@ jobs:
           gh release create 'v${{ steps.version.outputs.next }}' `
             --target '${{ steps.commit.outputs.sha }}' `
             --title 'v${{ steps.version.outputs.next }}' `
-            --generate-notes `
+            --notes-file '${{ steps.changelog.outputs.notes }}' `
             '${{ steps.artefacts.outputs.setup }}' `
             '${{ steps.artefacts.outputs.portable }}'
 
