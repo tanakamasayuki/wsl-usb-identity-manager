@@ -102,7 +102,14 @@
   );
   const shown = $derived(devices.filter(FILTERS.find((f) => f.id === filter)!.match));
 
-  /** Records a failure and shows it. Everything that fails goes through here. */
+  /**
+   * Records a failure and shows it.
+   *
+   * The banner stays until the user dismisses it or starts something new. It
+   * used to be cleared by the next successful poll, which gave a usbipd error
+   * two seconds on screen before it vanished — long enough to notice, not
+   * nearly long enough to read.
+   */
   function fail(what: string, e: unknown) {
     error = String(e);
     log("error", `${what}: ${error}`);
@@ -115,7 +122,6 @@
       // is by definition absent from the previous list.
       devices = next;
       noteArrivals(next);
-      error = null;
     } catch (e) {
       fail("listing devices", e);
     }
@@ -470,7 +476,12 @@
   </div>
 
   {#if error}
-    <p class="error">{error}</p>
+    <div class="error">
+      <span class="error-text">{error}</span>
+      <button class="dismiss" title={t("error.dismiss")} onclick={() => (error = null)}>
+        &times;
+      </button>
+    </div>
   {/if}
 
   <!-- Fixed height: selecting a device must not resize the list above it. -->
@@ -846,7 +857,9 @@
      error appended below it was pushed out of the window. */
   .error {
     flex: 0 0 auto;
-    margin: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
     padding: 8px 14px;
     font-size: 12px;
     line-height: 1.5;
@@ -854,6 +867,30 @@
     background: color-mix(in srgb, var(--danger) 10%, transparent);
     border-top: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
     user-select: text;
+  }
+
+  /* usbipd puts several lines on stderr. Enough room to read them, capped so a
+     long one cannot push the device list off the window. */
+  .error-text {
+    flex: 1 1 auto;
+    max-height: 7em;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .dismiss {
+    all: unset;
+    flex: 0 0 auto;
+    padding: 0 6px;
+    font-size: 15px;
+    line-height: 1;
+    color: var(--danger);
+    cursor: default;
+  }
+
+  .dismiss:hover {
+    opacity: 0.7;
   }
 
   .toast {

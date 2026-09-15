@@ -15,7 +15,7 @@ use serialport::{FlowControl, UsbPortInfo};
 use wuim_core::windevice::WinUsbDevice;
 
 use crate::identity::{esp_variant, identity_key};
-use crate::{Applicability, Note, TargetIdentity, TargetProbe};
+use crate::{Applicability, Note, Recognition, TargetIdentity, TargetProbe};
 
 /// The ROM loader answers at 115200 baud; there is no reason to go faster for a
 /// handful of register reads.
@@ -25,11 +25,19 @@ const PROBE_BAUD: u32 = 115_200;
 /// is not an ESP32 does not hold the UI.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(3);
 
+
 pub struct Esp32Probe;
 
 impl TargetProbe for Esp32Probe {
     fn family(&self) -> &'static str {
         "esp32"
+    }
+
+    fn recognition(&self) -> Recognition {
+        // A COM port is all there is to go on. The adapter in front of the
+        // board says nothing about the board, so this probe cannot know the
+        // device is its own until it has asked.
+        Recognition::Fallback
     }
 
     fn side_effect(&self) -> Note {

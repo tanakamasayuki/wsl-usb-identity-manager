@@ -60,6 +60,7 @@ const en = {
   "settings.close": "Close",
   "settings.unsaved":
     "The settings file could not be read, so nothing is being saved this session. See the log.",
+  "error.dismiss": "Dismiss",
   "toolbar.identify_all": "Identify all",
   "toolbar.identify_all.hint":
     "Identifies every connected device that has not been identified yet. Each one restarts.",
@@ -121,7 +122,14 @@ const en = {
 
   "probe.esp32.side_effect":
     "Resets the board into its ROM bootloader and then back, so the running firmware restarts.",
+  "probe.ch32.side_effect":
+    "Halts the target core while the probe reads its UUID, then releases it. A program already running on the board is interrupted.",
   "probe.blocked.no_com_port": "No COM port, so there is no serial line to talk over.",
+  "probe.blocked.not_a_serial_carrier":
+    "A debug probe's own serial port, not a link to a board.",
+  "probe.blocked.not_a_wchlink": "Not a WCH-Link.",
+  "probe.blocked.wchlink_arm_mode":
+    "The WCH-Link is in ARM mode. Switch it to RISC-V mode to identify CH32 parts.",
   "probe.blocked.not_connected": "The device is not connected.",
   "probe.blocked.attached": "Attached to WSL, so Windows cannot reach the device.",
   "probe.blocked.none": "No identification method covers this device.",
@@ -187,6 +195,7 @@ const ja: Record<Key, string> = {
   "settings.close": "閉じる",
   "settings.unsaved":
     "設定ファイルを読めなかったため、今回は何も保存されません。ログを確認してください。",
+  "error.dismiss": "閉じる",
   "toolbar.identify_all": "一括識別",
   "toolbar.identify_all.hint":
     "接続中で未識別のデバイスをすべて識別します。対象はいずれも再起動します。",
@@ -248,7 +257,14 @@ const ja: Record<Key, string> = {
 
   "probe.esp32.side_effect":
     "ボードを ROM ブートローダに入れてから戻します。動作中のファームウェアが再起動します。",
+  "probe.ch32.side_effect":
+    "UUID を読み出す間、ターゲットのコアを停止させてから解放します。動作中のプログラムは中断されます。",
   "probe.blocked.no_com_port": "COM ポートが無いため、シリアル経由で話しかけられません。",
+  "probe.blocked.not_a_serial_carrier":
+    "デバッグプローブ自身のシリアルポートです。ボードへの経路ではありません。",
+  "probe.blocked.not_a_wchlink": "WCH-Link ではありません。",
+  "probe.blocked.wchlink_arm_mode":
+    "WCH-Link が ARM モードです。CH32 を識別するには RISC-V モードに切り替えてください。",
   "probe.blocked.not_connected": "デバイスが接続されていません。",
   "probe.blocked.attached": "WSL に接続中のため、Windows からデバイスに触れません。",
   "probe.blocked.none": "このデバイスに対応する識別方式がありません。",

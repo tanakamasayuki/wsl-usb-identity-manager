@@ -12,7 +12,14 @@
 //!
 //! Adding a family means adding a module and one line in [`probes`], with no
 //! change to the families already here (requirement R4.14).
+//!
+//! Probes are ordered by how surely they recognise a device. One that knows the
+//! hardware from its VID/PID goes first and, if it claims the device, stops the
+//! generic ones being offered at all. Without that, every new family would have
+//! to be added to a list of exceptions inside the generic probe, and that list
+//! would grow for as long as families do.
 
+pub mod ch32;
 pub mod esp32;
 pub mod identity;
 
@@ -68,9 +75,26 @@ impl Applicability {
     }
 }
 
+/// How a probe decides a device is its business.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Recognition {
+    /// The device's own identifiers say so: a VID/PID this probe owns. Certain,
+    /// and decided without touching anything.
+    ByIdentifier,
+    /// Anything of the right shape — a serial port, which could have any board
+    /// behind it, or none. Only offered when nothing more specific claimed the
+    /// device.
+    Fallback,
+}
+
 /// Reasons shared by every probe, so the UI only has to translate them once.
 pub mod notes {
     use super::Note;
+
+    pub const CLAIMED_BY_ANOTHER: Note = Note {
+        code: "probe.blocked.claimed_by_another",
+        en: "another probe recognises this hardware",
+    };
 
     pub const NOT_CONNECTED: Note = Note {
         code: "probe.blocked.not_connected",
@@ -105,6 +129,9 @@ pub trait TargetProbe: Send + Sync {
     /// Stable family name. Appears in stored data, so treat it as an identifier.
     fn family(&self) -> &'static str;
 
+    /// How surely this probe knows a device is its own. See [`Recognition`].
+    fn recognition(&self) -> Recognition;
+
     /// What this probe does to the device, in one sentence.
     ///
     /// Requirement R4.7 requires showing this before running a probe, so every
@@ -118,19 +145,68 @@ pub trait TargetProbe: Send + Sync {
     fn probe(&self, device: &WinUsbDevice) -> Result<TargetIdentity>;
 }
 
-/// Every probe that ships, in the order they should be tried.
+/// Every probe that ships, most specific first.
+///
+/// The order is the contract: [`Recognition::ByIdentifier`] probes come before
+/// [`Recognition::Fallback`] ones, and a test below holds that to it.
 pub fn probes() -> Vec<Box<dyn TargetProbe>> {
-    vec![Box::new(esp32::Esp32Probe)]
+    vec![Box::new(ch32::Ch32Probe), Box::new(esp32::Esp32Probe)]
 }
 
-/// Picks the probes that could be attempted against a device, each with the
-/// verdict that chose it, so a caller can explain why nothing applied.
+/// What each probe makes of a device, most specific first.
+///
+/// A probe that recognised the hardware from its identifiers has the last word.
+/// A WCH-Link exposes a serial port of its own, which to a generic serial probe
+/// is indistinguishable from an adapter with a board behind it; letting that
+/// probe run anyway would send a reset and a sync to a debug probe's console
+/// for no possible gain. "Recognised" includes being blocked — an ARM-mode
+/// WCH-Link is still a WCH-Link, and still not something to poke at.
 pub fn applicable(device: &WinUsbDevice) -> Vec<(Box<dyn TargetProbe>, Applicability)> {
-    probes()
+    let verdicts: Vec<(Box<dyn TargetProbe>, Applicability)> = probes()
         .into_iter()
         .map(|p| {
             let verdict = p.applicability(device);
             (p, verdict)
         })
+        .collect();
+
+    let claimed = verdicts.iter().any(|(probe, verdict)| {
+        probe.recognition() == Recognition::ByIdentifier
+            && !matches!(verdict, Applicability::NotApplicable(_))
+    });
+
+    verdicts
+        .into_iter()
+        .map(|(probe, verdict)| {
+            if claimed && probe.recognition() == Recognition::Fallback {
+                let note = notes::CLAIMED_BY_ANOTHER;
+                (probe, Applicability::NotApplicable(note))
+            } else {
+                (probe, verdict)
+            }
+        })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The order in `probes()` is what makes the claim rule work: a fallback
+    /// listed first would be offered before the probe that actually knows the
+    /// hardware.
+    #[test]
+    fn specific_probes_come_before_the_fallbacks() {
+        let mut seen_fallback = false;
+        for probe in probes() {
+            match probe.recognition() {
+                Recognition::Fallback => seen_fallback = true,
+                Recognition::ByIdentifier => assert!(
+                    !seen_fallback,
+                    "{} recognises by identifier but is listed after a fallback",
+                    probe.family()
+                ),
+            }
+        }
+    }
 }

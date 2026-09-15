@@ -14,6 +14,13 @@ serde.workspace = true
 
 # The `cli` feature pulls in argument parsing, progress bars and a terminal
 # renderer we have no use for, and its module carries no SemVer guarantee.
+# The WCH-Link protocol, its USB transport and the CH32 device database. The
+# transport tries nusb first and falls back to WCH's own Windows driver, so a
+# probe on the stock driver needs no WinUSB replacement.
+ch32rv-wchlink = "0.7"
+ch32rv-usb = "0.7"
+ch32rv-target = "0.7"
+
 espflash = { version = "4.6", default-features = false, features = ["serialport"] }
 # The usbportinfo-* features are enabled so `UsbPortInfo` has a fixed set of
 # fields: it has no `Default`, so a struct literal has to name all of them,
