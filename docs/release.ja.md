@@ -30,8 +30,8 @@ Tauri は無ければ `Cargo.toml` のバージョンを使うので、上げる
 
 | ファイル | 内容 |
 | --- | --- |
-| `WSL USB Identity Manager_<version>_x64-setup.exe` | NSIS インストーラ。per-user、管理者権限不要 |
-| `wsl-usb-identity-manager_<version>_x64_portable.zip` | 実行ファイル + `portable.txt` |
+| `wsl-usb-identity-manager_<version>_x64_setup.exe` | NSIS インストーラ。per-user、管理者権限不要 |
+| `wsl-usb-identity-manager_<version>_x64_portable.zip` | 実行ファイル + README（英日）+ ライセンス + `portable.txt` |
 
 `portable.txt` があると、`devices.json` と `wuim.log` を `%APPDATA%` /
 `%LOCALAPPDATA%` ではなく実行ファイルと同じ場所に置く。
@@ -48,7 +48,7 @@ Tauri は無ければ `Cargo.toml` のバージョンを使うので、上げる
 
 ```console
 winget install Microsoft.WingetCreate
-wingetcreate new https://github.com/tanakamasayuki/wsl-usb-identity-manager/releases/download/v<version>/WSL%20USB%20Identity%20Manager_<version>_x64-setup.exe
+wingetcreate new https://github.com/tanakamasayuki/wsl-usb-identity-manager/releases/download/v<version>/wsl-usb-identity-manager_<version>_x64_setup.exe
 ```
 
 対話に答えて PR を提出させる。`InstallerType` は `nullsoft` を指定する。

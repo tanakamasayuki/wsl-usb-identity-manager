@@ -30,8 +30,8 @@ to keep in sync. Do not add it back.
 
 | File | What it is |
 | --- | --- |
-| `WSL USB Identity Manager_<version>_x64-setup.exe` | NSIS installer, per-user, no administrator rights |
-| `wsl-usb-identity-manager_<version>_x64_portable.zip` | The executable plus `portable.txt` |
+| `wsl-usb-identity-manager_<version>_x64_setup.exe` | NSIS installer, per-user, no administrator rights |
+| `wsl-usb-identity-manager_<version>_x64_portable.zip` | The executable, both READMEs, the licence and `portable.txt` |
 
 `portable.txt` is what makes the application keep `devices.json` and `wuim.log`
 beside the executable rather than under `%APPDATA%` and `%LOCALAPPDATA%`.
@@ -48,7 +48,7 @@ repository; it cannot create one. So the first version goes in manually, once:
 
 ```console
 winget install Microsoft.WingetCreate
-wingetcreate new https://github.com/tanakamasayuki/wsl-usb-identity-manager/releases/download/v<version>/WSL%20USB%20Identity%20Manager_<version>_x64-setup.exe
+wingetcreate new https://github.com/tanakamasayuki/wsl-usb-identity-manager/releases/download/v<version>/wsl-usb-identity-manager_<version>_x64_setup.exe
 ```
 
 Answer its questions, then let it submit the pull request. Use

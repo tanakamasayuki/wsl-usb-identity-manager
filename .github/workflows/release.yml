@@ -113,17 +113,32 @@ jobs:
       - name: Build
         run: npx tauri build
 
-      - name: Pack the portable ZIP
-        id: portable
+      - name: Name and pack the artefacts
+        id: artefacts
         shell: pwsh
         run: |
           $version = '${{ steps.version.outputs.next }}'
+
+          # Tauri names the bundle after the product name, which contains
+          # spaces — and GitHub turns those into dots when the file is attached
+          # to a release, giving `WSL.USB.Identity.Manager_...`. Renaming here
+          # gives both artefacts one shape: `_` between fields, `-` only inside
+          # the product name.
+          $built = Get-ChildItem 'target/release/bundle/nsis/*-setup.exe' | Select-Object -First 1
+          if (-not $built) { throw 'No NSIS installer was produced' }
+          $setup = "wsl-usb-identity-manager_${version}_x64_setup.exe"
+          Copy-Item $built.FullName $setup
+          "setup=$setup" >> $env:GITHUB_OUTPUT
+
           $staging = 'portable-staging'
           New-Item -ItemType Directory -Force $staging | Out-Null
 
           Copy-Item 'target/release/wsl-usb-identity-manager.exe' $staging
           Copy-Item 'LICENSE' $staging
+          # Both languages: the application is used in Japanese and the English
+          # README alone leaves half the audience without the explanation.
           Copy-Item 'README.md' $staging
+          Copy-Item 'README.ja.md' $staging
 
           # This file is what makes the application keep its settings and log
           # beside the executable instead of under %APPDATA% (requirement R7.2).
@@ -137,7 +152,7 @@ jobs:
 
           $zip = "wsl-usb-identity-manager_${version}_x64_portable.zip"
           Compress-Archive -Path "$staging/*" -DestinationPath $zip -Force
-          "path=$zip" >> $env:GITHUB_OUTPUT
+          "portable=$zip" >> $env:GITHUB_OUTPUT
 
       - name: Publish the release
         if: ${{ !inputs.dry_run }}
@@ -145,17 +160,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Resolved rather than globbed: the bundle name contains the product
-          # name, which has spaces in it.
-          $setup = Get-ChildItem 'target/release/bundle/nsis/*-setup.exe' | Select-Object -First 1
-          if (-not $setup) { throw 'No NSIS installer was produced' }
-
           gh release create 'v${{ steps.version.outputs.next }}' `
             --target '${{ steps.commit.outputs.sha }}' `
             --title 'v${{ steps.version.outputs.next }}' `
             --generate-notes `
-            $setup.FullName `
-            '${{ steps.portable.outputs.path }}'
+            '${{ steps.artefacts.outputs.setup }}' `
+            '${{ steps.artefacts.outputs.portable }}'
 
       # Opens a pull request against microsoft/winget-pkgs. It updates an
       # existing package, so the very first version has to be submitted by hand
@@ -170,5 +180,5 @@ jobs:
           release-tag: v${{ steps.version.outputs.next }}
           # Only the installer. The portable ZIP is published on the release
           # page but deliberately not offered through WinGet (§9.2).
-          installers-regex: '-setup\.exe$'
+          installers-regex: '_setup\.exe$'
           token: ${{ secrets.WINGET_TOKEN }}

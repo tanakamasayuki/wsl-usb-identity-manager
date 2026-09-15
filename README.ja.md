@@ -5,7 +5,9 @@
 [usbipd-win](https://github.com/dorssel/usbipd-win) で USB デバイスを WSL に転送する環境で、
 **どれがどの物理デバイスなのか**を確実に把握するためのツール。
 
-> **状態: 仕様策定中。** 実装はまだありません。
+> **状態: 初期リリース。** デバイスの列挙、ESP32 系ターゲットの識別、
+> usbipd の操作は動作します。CH32 系への対応とデバイスごとの
+> WSL ディストリビューション設定はまだありません。
 > 要件は [docs/requirements.ja.md](docs/requirements.ja.md) を参照してください。
 
 ## 解決する問題
@@ -93,13 +95,17 @@ WCH-Link に attach すればターゲットのコアが止まります。
 
 ## インストール
 
-初回リリース後に対応予定です。
+[最新リリース](https://github.com/tanakamasayuki/wsl-usb-identity-manager/releases/latest) からインストーラまたはポータブル ZIP を取得してください。
 
-```console
-winget install <package-id>
-```
+| | |
+| --- | --- |
+| `wsl-usb-identity-manager_<version>_x64_setup.exe` | 現在のユーザーにインストール。管理者権限は不要 |
+| `wsl-usb-identity-manager_<version>_x64_portable.zip` | 展開して実行。設定とログを実行ファイルの隣に置く |
 
-インストールを避けたい場合向けに、リリースページでポータブル ZIP も配布します。
+**コード署名はまだしていません。** 初回起動時に Windows SmartScreen の警告が出ます。
+
+WinGet はまだ登録されていません。コミュニティリポジトリに受理されれば
+`winget install` も使えるようになります。
 
 ## ドキュメント
 

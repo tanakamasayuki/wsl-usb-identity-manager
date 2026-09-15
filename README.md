@@ -5,7 +5,9 @@
 Track which physical device is which when forwarding USB devices to WSL with
 [usbipd-win](https://github.com/dorssel/usbipd-win).
 
-> **Status: specification phase.** Nothing is implemented yet.
+> **Status: early releases.** Enumeration, identification of ESP32 targets, and
+> the usbipd operations work; CH32 support and per-device WSL distribution
+> settings do not exist yet.
 > See [docs/requirements.ja.md](docs/requirements.ja.md) for the requirements
 > (design documents are written in Japanese).
 
@@ -94,14 +96,18 @@ available, it is displayed, never modified.
 
 ## Installation
 
-Planned once the first release is cut:
+Download the installer or the portable ZIP from the
+[latest release](https://github.com/tanakamasayuki/wsl-usb-identity-manager/releases/latest).
 
-```console
-winget install <package-id>
-```
+| | |
+| --- | --- |
+| `wsl-usb-identity-manager_<version>_x64_setup.exe` | Installs for the current user. No administrator rights. |
+| `wsl-usb-identity-manager_<version>_x64_portable.zip` | Unpack and run. Keeps its settings and log beside the executable. |
 
-A portable ZIP will also be published on the releases page for people who would rather
-not install anything.
+Builds are not code-signed yet, so Windows SmartScreen warns on first run.
+
+WinGet is not set up yet; once the package is accepted into the community
+repository, `winget install` will work too.
 
 ## Documentation
 
