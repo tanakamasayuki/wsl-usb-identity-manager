@@ -25,7 +25,6 @@ const PROBE_BAUD: u32 = 115_200;
 /// is not an ESP32 does not hold the UI.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(3);
 
-
 pub struct Esp32Probe;
 
 impl TargetProbe for Esp32Probe {
