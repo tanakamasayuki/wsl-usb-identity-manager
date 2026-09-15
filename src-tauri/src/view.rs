@@ -11,7 +11,7 @@ use wuim_core::store::Settings;
 use wuim_probe::TargetIdentity;
 use wuim_probe::notes;
 
-/// One row of either table.
+/// One row of the device list.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceView {

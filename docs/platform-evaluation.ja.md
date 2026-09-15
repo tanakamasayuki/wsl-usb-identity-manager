@@ -107,7 +107,7 @@ CH340 は `CH341SER_A64` に丸ごとバインドされるため、**nusb から
 | A1 プローブ再利用 | ◎ ch32rv + espflash | ◎ 同左 | △ board-identify に Windows 対応追加が必要 | ✗ フルスクラッチ |
 | A2 Windows API | ◎ windows crate | ◎ 同左 | ○ ctypes（170ms 実証済み） | ◎ CsWin32 |
 | A3 インストーラ/更新/ポータブル | ◎ NSIS+MSI+updater 内蔵 / ポータブルは要工夫 | ○ 単一 exe = ポータブル自明 / 他は自作 | △ PyInstaller、AV 誤検知が実務的な壁 | ○ Velopack が優秀 |
-| A4 CI 自動化 | ◎ `tauri-action` 公式 | ○ 素の cargo + gh release | △ OS 別ランナー + 署名必須 | ○ |
+| A4 CI 自動化 | ◎ `tauri build` が NSIS まで生成 | ○ 素の cargo + gh release | △ OS 別ランナー + 署名必須 | ○ |
 | A5 常駐時の軽さ | ○ ~10MB / WebView2 依存 | ◎ ~15MB 単一 exe / 依存なし | ✗ ~100MB / 起動 1 秒 | ○ ~70MB(self-contained) |
 | A6 継続性 | ◎ ch32rv と同じ言語・同じ CI 作法 | ◎ 同左 | ○ board-identify と同じ言語 | △ 新規言語 + 新規実装 |
 | UI 実装コスト（表・詳細ペイン・トレイ） | ◎ HTML/CSS、日本語フォントは OS 任せ | △ 表・ツリーは自作、CJK フォント同梱が必要 | ◎ Qt の TableView | ◎ |
@@ -131,8 +131,7 @@ CH340 は `CH341SER_A64` に丸ごとバインドされるため、**nusb から
 1. `ch32rv` の crate をそのまま依存にでき、WCH-Link プローブの新規実装・二重保守がゼロになる
 2. ESP32 プローブも `espflash` crate で賄え、こちらも新規実装がゼロ
 3. `windows` crate + `nusb` で必要な Windows API に過不足なく届く
-4. `tauri-action` により GitHub Actions でのビルド・署名・リリース・更新マニフェスト生成が
-   一つのアクションで完結する
+4. `tauri build` が NSIS バンドルまで作るため、CI は素の GitHub Actions で完結する
 5. デバイス一覧・詳細ペイン・設定画面という UI は HTML/CSS が最も安く、
    日本語表示は OS のフォントに任せられる
 6. ch32rv と言語・ツールチェイン・CI 作法が揃うため、保守者 1 名でも運用が二重化しない
@@ -146,10 +145,10 @@ CH340 は `CH341SER_A64` に丸ごとバインドされるため、**nusb から
 
 ---
 
-## 6. パッケージング・配布（未決定 / 検討中）
+## 6. パッケージング・配布の検討材料
 
-要件は「WinGet 配布」「インストーラ + 自動更新」「ポータブル ZIP」「GitHub Actions で自動化」。
-以下は決定ではなく、判断に必要な事実の整理である。
+要件は「WinGet 配布」「ポータブル ZIP」「GitHub Actions で自動化」。
+本節は判断の材料となる事実であり、**結論は §9 の決定事項にある。**
 
 ### 6.1 WinGet が受け付ける形式
 
@@ -193,8 +192,8 @@ winget 側の記録とインストール実体がズレる。よくある折衷�
 | b | 自己更新は行わず、常に「新版があります」の通知とリリースページ誘導のみ | 実装が最も軽い。WinGet と競合しない |
 | c | per-user NSIS のみ配布し、自己更新を正とする | winget upgrade と二重管理になる |
 
-→ **初版は b（通知のみ）で始め、必要になったら a に進むのが安全**、というのが現時点の見立て。
-ただしこれは決定事項ではない。
+→ **自動更新そのものを実装しないこと**で、この論点ごと消滅した（D3）。
+更新は `winget upgrade` または ZIP の差し替えによる。
 
 ### 6.4 ポータブル ZIP の実現方法
 
@@ -210,9 +209,8 @@ Tauri はポータブル形式を正式サポートしていない。取りう�
 Windows 10 でも Edge 更新経由でほぼ導入済み。
 NSIS インストーラにはブートストラッパを埋め込めるが、**ポータブル版には埋め込めない**。
 
-→ ポータブル版を「WebView2 が入っている環境向け」と割り切れば手段 1 で成立する。
-割り切れないなら §5 の代替案（egui/slint）を再検討する必要がある。
-**ここが Tauri 採用の唯一の弱点であり、決定前に結論を出すべき論点。**
+→ 手段 1 を採り、ポータブル版は「WebView2 が入っている環境向け」と割り切る（D2）。
+起動時に検出し、無ければ導入先を案内して終了する（§9.4）。
 
 ### 6.5 設定の保存場所
 
@@ -223,7 +221,7 @@ NSIS インストーラにはブートストラッパを埋め込めるが、**�
 | a | 常に `%APPDATA%\<app>\` | ポータブル版でも痕跡が残る |
 | b | exe と同じディレクトリに `portable.txt` があればそこに保存、無ければ `%APPDATA%` | 一般的なポータブル規約 |
 
-→ b を推奨するが未決定。
+→ b を採用する（D5）。
 
 ### 6.6 コード署名
 
@@ -231,9 +229,9 @@ WinGet 配布そのものに署名は必須ではないが、無署名だと Sma
 Tauri updater の署名（`.sig`）とは別物である点に注意。
 
 - Authenticode 証明書の取得は有償かつ本人確認が必要
-- 初版は無署名で出し、SmartScreen 評価が溜まるのを待つ、という選択も現実的
+- 無署名で出し、SmartScreen 評価が溜まるのを待つ選択も現実的
 
-→ 未決定。初版のスコープ外としてよい。
+→ 署名しない（D6）。
 
 ---
 
@@ -305,7 +303,7 @@ HKCU\Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5
 | D3 | 自動更新 | **実装しない。**更新は `winget upgrade` または ZIP 差し替え |
 | D4 | インストーラ形態 | **NSIS（per-user、管理者権限不要）のみ。**MSI は出さない |
 | D5 | 設定の保存場所 | exe と同じ場所に `portable.txt` があればそこ、無ければ `%APPDATA%` |
-| D6 | コード署名 | **初版スコープ外。**無署名で公開し、必要になった時点で再検討 |
+| D6 | コード署名 | **行わない。**無署名で公開し、必要になった時点で再検討 |
 
 ### 9.1 自動更新を外したことによる GUI レイヤの再評価
 
@@ -320,7 +318,7 @@ HKCU\Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5
 | 日本語表示 | OS のフォントを使用。追加作業なし | **CJK フォントの同梱が必要**（Alias/Memo に任意の漢字が入るため subset 不可、約 5〜8 MB） |
 | 日本語 IME 入力 | **WebView2 = OS のテキスト入力そのもの。確実** | 実装済みで改善も続くが、[トラッキング issue #248](https://github.com/emilk/egui/issues/248) は長期オープン |
 | ツールチェイン | Rust + Node（フロントエンドビルド） | Rust のみ |
-| バンドル | `tauri-action` が NSIS/MSI を生成 | `cargo build` の成果物をそのまま ZIP |
+| バンドル | `tauri build` が NSIS インストーラを生成 | `cargo build` の成果物をそのまま ZIP |
 
 **Tauri を採用する。** 決め手は 2 点。
 
@@ -338,7 +336,7 @@ egui の利点（単一 exe・フォント不要・Rust のみ）は、
 リリースごとに **2 種類だけ**を出す。
 
 ```text
-wsl-usb-identity-manager_<version>_x64-setup.exe    NSIS / per-user / 管理者権限不要
+wsl-usb-identity-manager_<version>_x64_setup.exe    NSIS / per-user / 管理者権限不要
 wsl-usb-identity-manager_<version>_x64_portable.zip ポータブル（portable.txt 同梱）
 ```
 
@@ -357,11 +355,17 @@ wsl-usb-identity-manager_<version>_x64_portable.zip ポータブル（portable.t
 ```text
 workflow_dispatch  （Actions 画面で bump: major|minor|patch を選択）
    ↓
-Cargo.toml の version を bump して書き戻し、コミット & push
+Cargo.toml の version を bump して書き戻し、読み直して検証
    ↓
-tauri-apps/tauri-action     ビルド + NSIS バンドル + GitHub Release 作成（タグもここで打たれる）
+CHANGELOG.md の ## Unreleased を ## <version> - <date> へ閉じる
    ↓
-ポータブル ZIP を生成して Release にアップロード
+bump とチェンジログをコミット & push
+   ↓
+npx tauri build            NSIS インストーラを生成
+   ↓
+成果物を配布名へ改名し、ポータブル ZIP を作る
+   ↓
+gh release create          タグを打ち、Release を作成（本文は上で閉じた節）
    ↓
 vedantmgoyal9/winget-releaser   winget-pkgs へ PR を自動作成
 ```
@@ -425,8 +429,8 @@ permissions:
 - `concurrency` で二重起動を防ぐ（同時実行するとバージョンが競合する）
 - `winget-releaser` はタグ名からバージョンを取るため、`v` プレフィックスの有無を
   タグ・Release・マニフェストで統一する
-- `tauri-action` は `tagName` と `releaseName` を渡すと Release を作る。
-  タグが未作成なら Release 作成時に GitHub 側で作られる
+- Release は `gh release create` で作る。タグが未作成なら、その時点で
+  指定したコミットに対して GitHub 側が打つ
 
 ### 9.4 WebView2 未導入時の挙動
 

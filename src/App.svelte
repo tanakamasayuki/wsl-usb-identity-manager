@@ -172,7 +172,8 @@
   function autoEligible(device: DeviceView): boolean {
     // A device that reports a serial needs no probe (R4.8).
     if (device.serial) return false;
-    // Already known, whether from this session or from the stored file.
+    // Already identified this session. Nothing is read back from disk: an
+    // identity lasts only as long as the device stays plugged in (R4.3).
     if (device.identity) return false;
     if (device.vidPid && excluded().has(device.vidPid)) return false;
     return device.probes.some((p) => p.available);

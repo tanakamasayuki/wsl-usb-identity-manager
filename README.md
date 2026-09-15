@@ -5,11 +5,8 @@
 Track which physical device is which when forwarding USB devices to WSL with
 [usbipd-win](https://github.com/dorssel/usbipd-win).
 
-> **Status: early releases.** Enumeration, identification of ESP32 targets, and
-> the usbipd operations work; CH32 support and per-device WSL distribution
-> settings do not exist yet.
-> See [docs/requirements.ja.md](docs/requirements.ja.md) for the requirements
-> (design documents are written in Japanese).
+> Design documents are written in Japanese. See
+> [docs/requirements.ja.md](docs/requirements.ja.md) for the requirements.
 
 ## The problem
 
@@ -60,10 +57,12 @@ otherwise. Adding a family is meant to be additive.
 
 Separate **where a device is plugged in** from **what device it is**.
 
-| | Examples | Persisted |
+| | Examples | Kept |
 | --- | --- | --- |
-| Runtime connection | bus ID, COM number, `/dev/ttyUSB0`, attach state | never |
-| Identity | USB serial, board ID read from the target, your own label | yes |
+| Runtime connection | bus ID, COM number, `/dev/ttyUSB0`, attach state | shown, never used as a name |
+| USB identity | VID/PID, USB serial, port path | read from Windows every time |
+| Target identity | the board ID read from the target itself | for as long as the device stays plugged in |
+| Your own labels | alias, memo, attach settings | saved |
 
 Anything that cannot be pinned down from USB descriptors is identified by **asking the
 target board itself** — the same conclusion
@@ -72,10 +71,15 @@ side.
 
 Asking the board disturbs it: reading an ESP32's eFuse MAC restarts the firmware, and
 attaching to a WCH-Link halts the target core. So probing is not something this tool
-does on a timer. It probes when you press the button, or — if you turn the option on —
-in a short window right after a device is plugged in, when nothing is using it yet.
-Everything else is answered from cache, and every device carries a visible confidence
-level so a guess is never shown as a fact.
+does on a timer. It probes when you press the button, or in a short window right after
+a device is plugged in, when nothing is using it yet.
+
+**What a probe found is dropped when the device is unplugged.** Nothing in USB says
+whether the board on the end of a CH340 was swapped while it was out, so a remembered
+answer would be a guess wearing the clothes of a fact. Unplug it, plug it back in, and
+it is an unidentified device again — press identify, or let the automatic window do it.
+A device that has not been identified says so, rather than showing a name that might
+belong to something else.
 
 ## Scope
 
@@ -104,10 +108,8 @@ Download the installer or the portable ZIP from the
 | `wsl-usb-identity-manager_<version>_x64_setup.exe` | Installs for the current user. No administrator rights. |
 | `wsl-usb-identity-manager_<version>_x64_portable.zip` | Unpack and run. Keeps its settings and log beside the executable. |
 
-Builds are not code-signed yet, so Windows SmartScreen warns on first run.
-
-WinGet is not set up yet; once the package is accepted into the community
-repository, `winget install` will work too.
+Builds are not code-signed, so Windows SmartScreen warns on first run until the
+download has built up a reputation.
 
 ## Documentation
 

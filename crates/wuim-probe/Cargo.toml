@@ -12,8 +12,6 @@ wuim-core = { path = "../wuim-core" }
 anyhow.workspace = true
 serde.workspace = true
 
-# The `cli` feature pulls in argument parsing, progress bars and a terminal
-# renderer we have no use for, and its module carries no SemVer guarantee.
 # The WCH-Link protocol, its USB transport and the CH32 device database. The
 # transport tries nusb first and falls back to WCH's own Windows driver, so a
 # probe on the stock driver needs no WinUSB replacement.

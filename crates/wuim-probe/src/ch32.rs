@@ -9,8 +9,7 @@
 //! also solves the driver question: it opens the probe through nusb, and on
 //! Windows falls back to WCH's own vendor driver when nusb cannot claim the
 //! interface. So a WCH-Link left on the stock `WCHLink_A64` driver works as it
-//! is, and requirement R4.12's demand for WinUSB no longer holds — see the note
-//! in [`crate`].
+//! is, which is why requirement R4.12 forbids asking the user to replace it.
 
 use std::collections::BTreeMap;
 
