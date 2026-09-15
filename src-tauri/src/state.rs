@@ -1,13 +1,18 @@
-//! The stored file, held for the lifetime of the application.
+//! What the application holds while it runs: the settings file, and the
+//! identities established this session.
 //!
-//! One place owns it so that a write from a probe and a write from the settings
-//! panel cannot interleave into a half-updated file, and so that a file this
-//! build refused to read is never written over (requirement R7.5).
+//! The two are kept apart on purpose. Settings are the user's and outlive the
+//! process. **Identities do not.** A probe tells us what is on the end of a
+//! cable at that moment; nothing in USB tells us the board has not been swapped
+//! since, so an identity is dropped the moment its device is unplugged rather
+//! than written down and matched back later.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
 use wuim_core::store::{self, Loaded, Store};
+use wuim_probe::TargetIdentity;
 
 use crate::logging;
 
@@ -17,6 +22,8 @@ struct Held {
     /// False when the file on disk was refused. Everything still works for this
     /// session; nothing is saved, because saving would destroy it.
     writable: bool,
+    /// Identities from probes, keyed by device instance id. Never written out.
+    identities: HashMap<String, TargetIdentity>,
 }
 
 static HELD: OnceLock<Mutex<Held>> = OnceLock::new();
@@ -26,11 +33,7 @@ fn held() -> &'static Mutex<Held> {
         let path = store::store_path();
         let (store, writable) = match store::load(&path) {
             Loaded::Ok(store) => {
-                logging::info(&format!(
-                    "loaded {} device(s) from {}",
-                    store.devices.len(),
-                    path.display()
-                ));
+                logging::info(&format!("loaded settings from {}", path.display()));
                 (store, true)
             }
             Loaded::Fresh => {
@@ -49,6 +52,7 @@ fn held() -> &'static Mutex<Held> {
             path,
             store,
             writable,
+            identities: HashMap::new(),
         })
     })
 }
@@ -84,4 +88,34 @@ pub fn is_writable() -> bool {
 
 pub fn path() -> PathBuf {
     held().lock().unwrap().path.clone()
+}
+
+/// Records what a probe found.
+pub fn remember_identity(instance_id: String, identity: TargetIdentity) {
+    held()
+        .lock()
+        .unwrap()
+        .identities
+        .insert(instance_id, identity);
+}
+
+pub fn identity(instance_id: &str) -> Option<TargetIdentity> {
+    held().lock().unwrap().identities.get(instance_id).cloned()
+}
+
+/// Forgets identities for devices that are no longer plugged in.
+///
+/// Unplugging is the one event after which what is on the end of the cable can
+/// have changed without anything on the USB side saying so. Keeping the identity
+/// across it would be a guess wearing the clothes of a fact.
+pub fn forget_absent(present: &[String]) {
+    let mut guard = held().lock().unwrap();
+    let before = guard.identities.len();
+    guard
+        .identities
+        .retain(|instance_id, _| present.iter().any(|p| p == instance_id));
+    let dropped = before - guard.identities.len();
+    if dropped > 0 {
+        logging::info(&format!("forgot {dropped} identit(y/ies) after unplug"));
+    }
 }

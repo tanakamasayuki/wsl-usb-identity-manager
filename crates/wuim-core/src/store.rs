@@ -1,14 +1,16 @@
-//! The settings and identity file.
+//! The settings file.
 //!
 //! JSON, because a person has to be able to open it and see what the
 //! application thinks (requirement R7.3), and because a portable install should
 //! be able to carry it around.
 //!
-//! Nothing that names a *position* is stored as an identity: no bus id, no
-//! Linux device node, and not usbipd's `PersistedGuid` — for a device with no
-//! serial number that GUID is tied to the port, so persisting it would quietly
-//! reintroduce the problem this application exists to solve (requirement R7.1).
-//! The port is kept, in [`Hints`], but only as a hint.
+//! **No identities are stored.** An earlier version cached probe results and
+//! matched a device back to one by its port, or by the serial number of the
+//! adapter in front of it. Neither says anything about the board on the other
+//! end of the cable: a USB-serial adapter can be moved to a different board
+//! without one byte changing on the USB side, so the match could be confidently
+//! wrong, which is worse than knowing nothing. Identities now come from asking
+//! the board, and last only while it stays plugged in.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -25,8 +27,6 @@ pub struct Store {
     pub schema_version: u32,
     #[serde(default)]
     pub settings: Settings,
-    #[serde(default)]
-    pub devices: Vec<StoredDevice>,
 }
 
 impl Default for Store {
@@ -34,7 +34,6 @@ impl Default for Store {
         Self {
             schema_version: SCHEMA_VERSION,
             settings: Settings::default(),
-            devices: Vec::new(),
         }
     }
 }
@@ -46,6 +45,17 @@ pub struct Settings {
     pub auto_identify: bool,
     /// `vid:pid` never probed automatically.
     pub auto_exclude: Vec<String>,
+    /// Ask before probing, stating what it does to the board (R4.7).
+    ///
+    /// Turning this off is a deliberate choice by someone who already knows a
+    /// probe restarts the board and does not need telling every time.
+    pub confirm_before_identify: bool,
+    /// Start with Windows, through the per-user `Run` key.
+    ///
+    /// The registry is what Windows acts on, so it is the authority; this field
+    /// records what the user asked for and is applied to the registry when it
+    /// changes. See [`crate::autostart`].
+    pub start_with_windows: bool,
 }
 
 impl Default for Settings {
@@ -54,61 +64,9 @@ impl Default for Settings {
             // On, gated by the exclusion list rather than by an allow list.
             auto_identify: true,
             auto_exclude: Vec::new(),
+            confirm_before_identify: true,
+            start_with_windows: false,
         }
-    }
-}
-
-/// What was learned about one physical device.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct StoredDevice {
-    /// The identity key from §4.5, and the key everything else hangs off.
-    pub identity_key: String,
-    pub device_type: String,
-    pub device_id: String,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub hardware_revision: Option<String>,
-    /// The transport's serial number, when it has one. Route 1 of §4.1.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub usb_serial: Option<String>,
-    pub vid: u16,
-    pub pid: u16,
-    #[serde(default)]
-    pub hints: Hints,
-}
-
-/// Where the device was last seen. Updated as it moves; never an identity.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct Hints {
-    /// `DEVPKEY_Device_LocationPaths`. Route 2 of §4.1 matches on this.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_location_path: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_instance_id: Option<String>,
-    /// For display only (R7.1).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_com_port: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_seen_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub probe_result_at: Option<String>,
-}
-
-impl Store {
-    /// Inserts or replaces the record for an identity key.
-    pub fn remember(&mut self, device: StoredDevice) {
-        match self
-            .devices
-            .iter_mut()
-            .find(|d| d.identity_key == device.identity_key)
-        {
-            Some(existing) => *existing = device,
-            None => self.devices.push(device),
-        }
-    }
-
-    pub fn find(&self, identity_key: &str) -> Option<&StoredDevice> {
-        self.devices.iter().find(|d| d.identity_key == identity_key)
     }
 }
 
@@ -211,7 +169,7 @@ pub fn store_path() -> PathBuf {
     base.join("wsl-usb-identity-manager").join("devices.json")
 }
 
-/// Now, as an RFC 3339 timestamp for the `last_seen_at` style fields.
+/// Now, as an RFC 3339 timestamp.
 pub fn timestamp() -> String {
     Zoned::now().strftime("%FT%T%:z").to_string()
 }
@@ -219,22 +177,6 @@ pub fn timestamp() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn device(key: &str) -> StoredDevice {
-        StoredDevice {
-            identity_key: key.to_owned(),
-            device_type: "esp32-s3".into(),
-            device_id: "34:85:18:8f:6d:7c".into(),
-            hardware_revision: Some("v0.1".into()),
-            usb_serial: None,
-            vid: 0x1a86,
-            pid: 0x7523,
-            hints: Hints {
-                last_location_path: Some("PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(1)".into()),
-                ..Hints::default()
-            },
-        }
-    }
 
     fn temp(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join("wuim-store-tests");
@@ -254,7 +196,8 @@ mod tests {
         let path = temp("round-trip.json");
         let mut store = Store::default();
         store.settings.auto_exclude = vec!["1a86:7523".into()];
-        store.remember(device("esp32-s3-3485188f6d7c"));
+        store.settings.confirm_before_identify = false;
+        store.settings.start_with_windows = true;
         save(&path, &store).unwrap();
 
         let Loaded::Ok(read) = load(&path) else {
@@ -262,26 +205,8 @@ mod tests {
         };
         assert_eq!(read.schema_version, SCHEMA_VERSION);
         assert_eq!(read.settings.auto_exclude, vec!["1a86:7523".to_string()]);
-        assert_eq!(read.devices, store.devices);
-    }
-
-    #[test]
-    fn remembering_the_same_key_replaces_rather_than_duplicates() {
-        let mut store = Store::default();
-        store.remember(device("esp32-s3-3485188f6d7c"));
-        let mut moved = device("esp32-s3-3485188f6d7c");
-        moved.hints.last_com_port = Some("COM9".into());
-        store.remember(moved);
-
-        assert_eq!(store.devices.len(), 1);
-        assert_eq!(
-            store
-                .find("esp32-s3-3485188f6d7c")
-                .unwrap()
-                .hints
-                .last_com_port,
-            Some("COM9".into())
-        );
+        assert!(!read.settings.confirm_before_identify);
+        assert!(read.settings.start_with_windows);
     }
 
     #[test]
@@ -306,21 +231,31 @@ mod tests {
     }
 
     #[test]
-    fn settings_default_to_automatic_identification_with_nothing_excluded() {
-        let settings = Settings::default();
-        assert!(settings.auto_identify);
-        assert!(settings.auto_exclude.is_empty());
+    fn a_file_from_when_identities_were_cached_still_reads() {
+        // Version 1 files written before the cache was removed carry a
+        // `devices` array. It is no longer part of the struct, so it is ignored
+        // and dropped on the next write rather than blocking the load.
+        let path = temp("with-devices.json");
+        fs::write(
+            &path,
+            r#"{"schema_version": 1, "settings": {"auto_identify": false},
+                "devices": [{"identity_key": "esp32-s3-abc", "vid": 6790}]}"#,
+        )
+        .unwrap();
+
+        let Loaded::Ok(store) = load(&path) else {
+            panic!("an older version-1 file should still read");
+        };
+        assert!(!store.settings.auto_identify);
     }
 
     #[test]
-    fn an_older_file_without_the_newer_fields_still_reads() {
-        let path = temp("minimal.json");
-        fs::write(&path, r#"{"schema_version": 1}"#).unwrap();
-        let Loaded::Ok(store) = load(&path) else {
-            panic!("a minimal file should read");
-        };
-        assert!(store.devices.is_empty());
-        assert!(store.settings.auto_identify);
+    fn settings_default_to_automatic_identification_with_confirmation() {
+        let settings = Settings::default();
+        assert!(settings.auto_identify);
+        assert!(settings.auto_exclude.is_empty());
+        assert!(settings.confirm_before_identify);
+        assert!(!settings.start_with_windows);
     }
 
     #[test]

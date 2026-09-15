@@ -8,9 +8,8 @@ use std::sync::OnceLock;
 use std::time::Instant;
 
 use wuim_core::UsbIds;
-use wuim_core::recall;
+use wuim_core::autostart;
 use wuim_core::snapshot::{DeviceRow, Snapshot};
-use wuim_core::store::{Hints, StoredDevice};
 use wuim_core::usbipd::{self, Operation};
 use wuim_probe::TargetIdentity;
 
@@ -86,20 +85,25 @@ fn usb_ids() -> &'static UsbIds {
 
 fn to_views(snapshot: &Snapshot) -> Vec<DeviceView> {
     let ids = usb_ids();
-    // Recalling costs one pass over the stored file and saves a probe — which
-    // is a board reset — for every device it recognises.
-    let recalled = state::with(|store| {
-        recall::recall(store, &snapshot.devices)
-            .iter()
-            .map(|(instance_id, hit)| (instance_id.clone(), Identity::from_recalled(hit)))
-            .collect::<std::collections::HashMap<_, _>>()
-    });
+
+    // An identity belongs to a device that is still plugged in. Anything that
+    // has gone is forgotten here rather than lingering to be matched back to
+    // whatever appears in its place.
+    let present: Vec<String> = snapshot
+        .devices
+        .iter()
+        .filter(|row| row.usbipd.as_ref().is_some_and(|d| d.is_connected()))
+        .map(|row| row.instance_id.raw.clone())
+        .collect();
+    state::forget_absent(&present);
 
     snapshot
         .devices
         .iter()
         .map(|row| {
-            let identity = recalled.get(&row.instance_id.raw).cloned();
+            let identity = state::identity(&row.instance_id.raw)
+                .as_ref()
+                .map(Identity::from);
             DeviceView::from_row(row, ids, identity)
         })
         .collect()
@@ -108,8 +112,14 @@ fn to_views(snapshot: &Snapshot) -> Vec<DeviceView> {
 /// Hands the stored settings to the frontend at startup.
 #[tauri::command]
 pub fn read_settings() -> StoredSettings {
+    let mut settings = state::with(|store| SettingsView::from(&store.settings));
+    // The registry is what Windows acts on, so it decides. An entry removed by
+    // hand, or left behind by a copy that has since moved, is reported as it
+    // actually is rather than as the file remembers it.
+    settings.start_with_windows = autostart::is_enabled();
+
     StoredSettings {
-        settings: state::with(|store| SettingsView::from(&store.settings)),
+        settings,
         writable: state::is_writable(),
         path: state::path().display().to_string(),
     }
@@ -126,12 +136,32 @@ pub struct StoredSettings {
 
 /// Saves the settings the user changed.
 #[tauri::command]
-pub fn write_settings(settings: SettingsView) {
+pub fn write_settings(settings: SettingsView) -> Result<(), String> {
     logging::info(&format!(
-        "settings: auto_identify={} exclude={:?}",
-        settings.auto_identify, settings.auto_exclude
+        "settings: auto_identify={} exclude={:?} confirm={} startup={}",
+        settings.auto_identify,
+        settings.auto_exclude,
+        settings.confirm_before_identify,
+        settings.start_with_windows,
     ));
+
+    // Applied before the file is written: if the registry refuses, the setting
+    // has not taken effect and saying otherwise would be a lie the user only
+    // discovers at the next login.
+    if autostart::is_enabled() != settings.start_with_windows {
+        autostart::set(settings.start_with_windows).map_err(to_message)?;
+        logging::info(&format!(
+            "startup entry {}",
+            if settings.start_with_windows {
+                "added"
+            } else {
+                "removed"
+            }
+        ));
+    }
+
     state::update(|store| store.settings = settings.into());
+    Ok(())
 }
 
 /// Runs a usbipd operation against a device.
@@ -228,28 +258,10 @@ fn probe_blocking(instance_id: &str, family: &str) -> Result<TargetIdentity, Str
         identity.identity_key
     ));
 
-    // Remembered so a restart does not mean probing — and resetting — every
-    // board again. The port is kept as a hint so a device with no serial can be
-    // recognised where it sits (§4.1 route 2), never as an identity (R7.1).
-    let now = wuim_core::store::timestamp();
-    state::update(|store| {
-        store.remember(StoredDevice {
-            identity_key: identity.identity_key.clone(),
-            device_type: identity.device_type.clone(),
-            device_id: identity.device_id.clone(),
-            hardware_revision: identity.hardware_revision.clone(),
-            usb_serial: row.instance_id.unit.serial().map(str::to_owned),
-            vid: row.instance_id.vid.unwrap_or(0),
-            pid: row.instance_id.pid.unwrap_or(0),
-            hints: Hints {
-                last_location_path: row.location_path().map(str::to_owned),
-                last_instance_id: Some(row.instance_id.raw.clone()),
-                last_com_port: row.com_port().map(str::to_owned),
-                last_seen_at: Some(now.clone()),
-                probe_result_at: Some(now.clone()),
-            },
-        });
-    });
+    // Held for as long as the device stays plugged in, and no longer. Writing
+    // it down would only be useful if it could be matched back afterwards, and
+    // nothing in USB can vouch that the same board is still on the cable.
+    state::remember_identity(row.instance_id.raw.clone(), identity.clone());
 
     Ok(identity)
 }

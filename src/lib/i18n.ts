@@ -47,6 +47,12 @@ const en = {
   "settings.auto.label": "Identify a device right after it is plugged in",
   "settings.auto.note":
     "A probe restarts the board, so this only runs in the {seconds} seconds after a device arrives, when nothing is using it yet — never at startup, and never on a timer.",
+  "settings.confirm.label": "Ask before identifying a device",
+  "settings.confirm.note":
+    "Off skips the warning and identifies straight away. The board still restarts; you just stop being told.",
+  "settings.startup.label": "Start with Windows",
+  "settings.startup.note":
+    "Adds an entry under the current user's Run key. No administrator rights, and no effect on other accounts. There is no tray icon yet, so the window opens at every sign-in.",
   "settings.exclude.label": "Never identify these VID:PID (comma separated)",
   "settings.exclude.placeholder": "1a86:7523, 10c4:ea60",
   "settings.exclude.note":
@@ -54,14 +60,16 @@ const en = {
   "settings.close": "Close",
   "settings.unsaved":
     "The settings file could not be read, so nothing is being saved this session. See the log.",
-  "confidence.confirmed": "confirmed",
-  "confidence.confirmed.hint": "The device answered for itself, or reports a matching serial number.",
-  "confidence.probable": "probably",
-  "confidence.probable.hint":
-    "Recognised only because it is in the port it was last seen in. Identify it again to be sure.",
-  "confidence.ambiguous": "uncertain",
-  "confidence.ambiguous.hint":
-    "More than one stored device fits this port, so nothing is claimed. Identify it to settle it.",
+  "toolbar.identify_all": "Identify all",
+  "toolbar.identify_all.hint":
+    "Identifies every connected device that has not been identified yet. Each one restarts.",
+  "toolbar.identify_all.none": "Nothing left to identify",
+  "busy.identify_all": "Identifying {done} of {total}…",
+
+  "identify_all.title": "Identify every unidentified device?",
+  "identify_all.count": "{count} device(s) will be identified, one after another.",
+  "identify_all.warning": "Every one of them restarts.",
+  "identify_all.run": "Identify all",
 
   "empty.connected": "No USB devices are connected.",
   "empty.shared": "Nothing is shared with usbipd right now.",
@@ -166,6 +174,12 @@ const ja: Record<Key, string> = {
   "settings.auto.label": "接続された直後に自動で識別する",
   "settings.auto.note":
     "識別はボードを再起動させるため、接続イベントから {seconds} 秒以内、まだ誰も使っていないタイミングに限って実行します。起動時や定期実行では行いません。",
+  "settings.confirm.label": "識別の前に確認する",
+  "settings.confirm.note":
+    "オフにすると警告を出さずに即座に識別します。ボードが再起動することは変わりません。知らされなくなるだけです。",
+  "settings.startup.label": "Windows と一緒に起動する",
+  "settings.startup.note":
+    "現在のユーザーの Run キーに登録します。管理者権限は不要で、他のアカウントには影響しません。タスクトレイ常駐はまだ無いので、サインインのたびにウィンドウが開きます。",
   "settings.exclude.label": "識別しない VID:PID（カンマ区切り）",
   "settings.exclude.placeholder": "1a86:7523, 10c4:ea60",
   "settings.exclude.note":
@@ -173,14 +187,16 @@ const ja: Record<Key, string> = {
   "settings.close": "閉じる",
   "settings.unsaved":
     "設定ファイルを読めなかったため、今回は何も保存されません。ログを確認してください。",
-  "confidence.confirmed": "確定",
-  "confidence.confirmed.hint": "デバイス自身が答えたか、シリアル番号が一致しています。",
-  "confidence.probable": "たぶん",
-  "confidence.probable.hint":
-    "前回と同じポートに挿さっていることだけが根拠です。確実にするには識別し直してください。",
-  "confidence.ambiguous": "不確実",
-  "confidence.ambiguous.hint":
-    "このポートに該当する記録が複数あるため、断定していません。識別すれば確定します。",
+  "toolbar.identify_all": "一括識別",
+  "toolbar.identify_all.hint":
+    "接続中で未識別のデバイスをすべて識別します。対象はいずれも再起動します。",
+  "toolbar.identify_all.none": "識別するものがありません",
+  "busy.identify_all": "識別しています（{done} / {total}）…",
+
+  "identify_all.title": "未識別のデバイスをすべて識別しますか？",
+  "identify_all.count": "{count} 台を順に識別します。",
+  "identify_all.warning": "対象はいずれも再起動します。",
+  "identify_all.run": "すべて識別する",
 
   "empty.connected": "接続中の USB デバイスがありません。",
   "empty.shared": "usbipd で共有中のデバイスはありません。",

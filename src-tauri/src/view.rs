@@ -6,9 +6,9 @@
 
 use serde::{Deserialize, Serialize};
 use wuim_core::UsbIds;
-use wuim_core::recall::{Confidence, Recalled};
 use wuim_core::snapshot::DeviceRow;
 use wuim_core::store::Settings;
+use wuim_probe::TargetIdentity;
 use wuim_probe::notes;
 
 /// One row of either table.
@@ -71,7 +71,7 @@ pub struct DeviceView {
     pub probes: Vec<ProbeOption>,
     /// Which usbipd operations make sense for the device as it stands.
     pub actions: Actions,
-    /// What the stored file says this device is, when it recognises it.
+    /// What a probe found this session, if one has run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub identity: Option<Identity>,
 }
@@ -89,6 +89,8 @@ pub struct DeviceView {
 pub struct SettingsView {
     pub auto_identify: bool,
     pub auto_exclude: Vec<String>,
+    pub confirm_before_identify: bool,
+    pub start_with_windows: bool,
 }
 
 impl From<&Settings> for SettingsView {
@@ -96,6 +98,8 @@ impl From<&Settings> for SettingsView {
         Self {
             auto_identify: settings.auto_identify,
             auto_exclude: settings.auto_exclude.clone(),
+            confirm_before_identify: settings.confirm_before_identify,
+            start_with_windows: settings.start_with_windows,
         }
     }
 }
@@ -105,11 +109,14 @@ impl From<SettingsView> for Settings {
         Self {
             auto_identify: view.auto_identify,
             auto_exclude: view.auto_exclude,
+            confirm_before_identify: view.confirm_before_identify,
+            start_with_windows: view.start_with_windows,
         }
     }
 }
 
-/// A recalled or freshly probed identity, with how much it is worth (R4.3).
+/// What a probe found. Present only while the device it came from stays
+/// plugged in; see `state::forget_absent`.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Identity {
@@ -118,17 +125,15 @@ pub struct Identity {
     pub device_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hardware_revision: Option<String>,
-    pub confidence: Confidence,
 }
 
-impl Identity {
-    pub fn from_recalled(recalled: &Recalled<'_>) -> Self {
+impl From<&TargetIdentity> for Identity {
+    fn from(identity: &TargetIdentity) -> Self {
         Self {
-            identity_key: recalled.device.identity_key.clone(),
-            device_type: recalled.device.device_type.clone(),
-            device_id: recalled.device.device_id.clone(),
-            hardware_revision: recalled.device.hardware_revision.clone(),
-            confidence: recalled.confidence,
+            identity_key: identity.identity_key.clone(),
+            device_type: identity.device_type.clone(),
+            device_id: identity.device_id.clone(),
+            hardware_revision: identity.hardware_revision.clone(),
         }
     }
 }
@@ -275,15 +280,20 @@ mod tests {
         );
         assert!(object.contains_key("autoIdentify"), "{keys:?}");
         assert!(object.contains_key("autoExclude"), "{keys:?}");
+        assert!(object.contains_key("confirmBeforeIdentify"), "{keys:?}");
+        assert!(object.contains_key("startWithWindows"), "{keys:?}");
     }
 
     #[test]
     fn settings_come_back_from_what_the_frontend_sends() {
-        let sent = r#"{"autoIdentify": false, "autoExclude": ["1a86:7523"]}"#;
+        let sent = r#"{"autoIdentify": false, "autoExclude": ["1a86:7523"],
+                       "confirmBeforeIdentify": false, "startWithWindows": true}"#;
         let view: SettingsView = serde_json::from_str(sent).unwrap();
         let settings: Settings = view.into();
 
         assert!(!settings.auto_identify);
         assert_eq!(settings.auto_exclude, vec!["1a86:7523".to_string()]);
+        assert!(!settings.confirm_before_identify);
+        assert!(settings.start_with_windows);
     }
 }

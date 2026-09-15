@@ -37,28 +37,32 @@ export interface DeviceView {
   problemCode: number | null;
   probes: ProbeOption[];
   actions: Actions;
-  /** What the stored file says this device is, when it recognises it. */
+  /** What a probe found this session, if one has run. */
   identity: Identity | null;
 }
 
-/** A recalled or freshly probed identity, with how much it is worth (R4.3). */
+/**
+ * What a probe found.
+ *
+ * Present only while the device it came from stays plugged in. Nothing in USB
+ * can vouch that the same board is still on the other end of a cable after it
+ * has been unplugged, so the answer is dropped rather than remembered.
+ */
 export interface Identity {
   identityKey: string;
   deviceType: string;
   deviceId: string;
   hardwareRevision: string | null;
-  /**
-   * `confirmed` rests on a serial number or a probe just now; `probable` only
-   * on the device still sitting in the port it was last seen in; `ambiguous`
-   * means the evidence fits more than one device and nothing is claimed.
-   */
-  confidence: "confirmed" | "probable" | "ambiguous";
 }
 
 export interface Settings {
   autoIdentify: boolean;
   /** `vid:pid` never probed automatically. */
   autoExclude: string[];
+  /** Ask before probing, stating what it does to the board (R4.7). */
+  confirmBeforeIdentify: boolean;
+  /** Start with Windows, through the per-user Run key. */
+  startWithWindows: boolean;
 }
 
 export interface StoredSettings {

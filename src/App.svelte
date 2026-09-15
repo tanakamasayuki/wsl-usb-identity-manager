@@ -75,6 +75,9 @@
   let autoIdentify = $state(true);
   /** VID:PID never probed automatically. Empty means nothing is excluded. */
   let autoExcludeList = $state("");
+  /** Ask before probing, stating what it does to the board (R4.7). */
+  let confirmBeforeIdentify = $state(true);
+  let startWithWindows = $state(false);
   /** False when the stored file was refused, so nothing is being saved. */
   let settingsWritable = $state(true);
   /** Set once the saved settings have arrived, so they are not saved back over. */
@@ -234,6 +237,8 @@
       .then((stored) => {
         autoIdentify = stored.settings.autoIdentify;
         autoExcludeList = stored.settings.autoExclude.join(", ");
+        confirmBeforeIdentify = stored.settings.confirmBeforeIdentify;
+        startWithWindows = stored.settings.startWithWindows;
         settingsWritable = stored.writable;
         settingsLoaded = true;
         log("info", `settings from ${stored.path}`);
@@ -260,9 +265,72 @@
     return { reason: t(blocked?.reason ?? "probe.blocked.none") };
   }
 
+  function saveSettings() {
+    return writeSettings({
+      autoIdentify,
+      autoExclude: [...excluded()],
+      confirmBeforeIdentify,
+      startWithWindows,
+    }).catch((e) => {
+      fail("saving the settings", e);
+      // The registry refused, so the switch did not take. Put it back rather
+      // than leaving the panel claiming something that is not true.
+      void readSettings()
+        .then((stored) => (startWithWindows = stored.settings.startWithWindows))
+        .catch(() => {});
+    });
+  }
+
   function startProbe(device: DeviceView) {
     const outcome = probeFor(device);
-    if ("probe" in outcome) probeTarget = { device, probe: outcome.probe };
+    if (!("probe" in outcome)) return;
+    // The warning is the whole point of the dialog; with it turned off there is
+    // nothing left for the dialog to do.
+    if (!confirmBeforeIdentify) {
+      void identify(device.instanceId, outcome.probe.family, true);
+      return;
+    }
+    probeTarget = { device, probe: outcome.probe };
+  }
+
+  /** Every connected device that could be identified and has not been. */
+  const unidentified = $derived(
+    devices.filter(
+      (d) => d.present && !d.identity && d.probes.some((p) => p.available),
+    ),
+  );
+
+  let confirmingAll = $state(false);
+
+  function startIdentifyAll() {
+    if (unidentified.length === 0) return;
+    if (!confirmBeforeIdentify) {
+      void identifyAll();
+      return;
+    }
+    confirmingAll = true;
+  }
+
+  /**
+   * Identifies everything outstanding, one at a time.
+   *
+   * Sequential because two probes would fight over adapters, and because the
+   * list is re-read between them: a board that answered may have changed what
+   * is outstanding.
+   */
+  async function identifyAll() {
+    confirmingAll = false;
+    const queue = unidentified.map((d) => d.instanceId);
+    const total = queue.length;
+
+    for (const [index, instanceId] of queue.entries()) {
+      busy = t("busy.identify_all", { done: index + 1, total });
+      const device = devices.find((d) => d.instanceId === instanceId);
+      const probe = device?.probes.find((p) => p.available);
+      if (!probe) continue;
+      await identify(instanceId, probe.family, false);
+    }
+    busy = null;
   }
 
   async function runProbe() {
@@ -364,6 +432,18 @@
              switched on but cannot match anything. -->
         <span class="armed" title={t("toolbar.auto_on.hint")}>{t("toolbar.auto_on")}</span>
       {/if}
+      <button
+        disabled={unidentified.length === 0 || busy !== null}
+        title={unidentified.length === 0
+          ? t("toolbar.identify_all.none")
+          : t("toolbar.identify_all.hint")}
+        onclick={startIdentifyAll}
+      >
+        {t("toolbar.identify_all")}
+        {#if unidentified.length > 0}
+          <span class="count">{unidentified.length}</span>
+        {/if}
+      </button>
       <button onclick={() => (settingsOpen = true)}>
         {t("toolbar.settings")}
       </button>
@@ -463,9 +543,7 @@
             {/if}
             {#if identity}
               <code class="key">{identity.identityKey}</code>
-              <span class="note">
-                {t(`confidence.${identity.confidence}`)} · {identity.deviceId}
-              </span>
+              <span class="note">{identity.deviceType} / {identity.deviceId}</span>
             {:else if selected.needsProbe}
               <span class="note">{t("detail.target.unknown")}</span>
             {:else}
@@ -501,20 +579,38 @@
   <ContextMenu x={menu.x} y={menu.y} items={menuItems} onclose={() => (menu = null)} />
 {/if}
 
+{#if confirmingAll}
+  <!-- Requirement R4.7 applied to the whole set: how many boards restart is
+       the part the user needs before agreeing, not just that some will. -->
+  <div class="backdrop" role="presentation" onclick={() => (confirmingAll = false)}></div>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="all-title">
+    <h2 id="all-title">{t("identify_all.title")}</h2>
+    <p class="effect">
+      {t("identify_all.count", { count: unidentified.length })}<br />
+      <strong>{t("identify_all.warning")}</strong>
+    </p>
+    <div class="dialog-actions">
+      <button onclick={() => (confirmingAll = false)}>{t("probe.cancel")}</button>
+      <button class="primary" onclick={identifyAll}>{t("identify_all.run")}</button>
+    </div>
+  </div>
+{/if}
+
 {#if settingsOpen}
   <SettingsPanel
     enabled={autoIdentify}
     excludeList={autoExcludeList}
+    {confirmBeforeIdentify}
+    {startWithWindows}
     graceSeconds={GRACE_SECONDS}
     writable={settingsWritable}
     onchange={(next) => {
       autoIdentify = next.enabled;
       autoExcludeList = next.excludeList;
+      confirmBeforeIdentify = next.confirmBeforeIdentify;
+      startWithWindows = next.startWithWindows;
       if (!settingsLoaded) return;
-      void writeSettings({
-        autoIdentify,
-        autoExclude: [...excluded()],
-      }).catch((e) => fail("saving the settings", e));
+      void saveSettings();
     }}
     onclose={() => (settingsOpen = false)}
   />
@@ -555,6 +651,47 @@
   nav .actions {
     display: flex;
     gap: 6px;
+  }
+
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+  }
+
+  .dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(440px, calc(100vw - 32px));
+    padding: 20px;
+    background: var(--bg-header);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  }
+
+  .dialog h2 {
+    margin: 0 0 14px;
+    font-size: 15px;
+  }
+
+  .dialog .effect {
+    margin: 0 0 18px;
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--fg);
+    background: color-mix(in srgb, var(--warn) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+    border-radius: 6px;
+  }
+
+  .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
   }
 
   nav .armed {

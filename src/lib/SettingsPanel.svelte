@@ -5,15 +5,43 @@
     enabled: boolean;
     /** VID:PID that must never be probed automatically. */
     excludeList: string;
+    /** Ask before probing, stating what it does to the board (R4.7). */
+    confirmBeforeIdentify: boolean;
+    startWithWindows: boolean;
     /** The window, in seconds, during which an arrival may be probed (R4.8). */
     graceSeconds: number;
     /** False when the stored file was refused; nothing is being saved. */
     writable: boolean;
-    onchange: (next: { enabled: boolean; excludeList: string }) => void;
+    onchange: (next: {
+      enabled: boolean;
+      excludeList: string;
+      confirmBeforeIdentify: boolean;
+      startWithWindows: boolean;
+    }) => void;
     onclose: () => void;
   }
 
-  let { enabled, excludeList, graceSeconds, writable, onchange, onclose }: Props = $props();
+  let {
+    enabled,
+    excludeList,
+    confirmBeforeIdentify,
+    startWithWindows,
+    graceSeconds,
+    writable,
+    onchange,
+    onclose,
+  }: Props = $props();
+
+  /** Current values with one field replaced, so each control sends the whole set. */
+  function change(patch: Partial<Parameters<Props["onchange"]>[0]>) {
+    onchange({
+      enabled,
+      excludeList,
+      confirmBeforeIdentify,
+      startWithWindows,
+      ...patch,
+    });
+  }
 </script>
 
 <svelte:window onkeydown={(e) => e.key === "Escape" && onclose()} />
@@ -26,7 +54,7 @@
     <input
       type="checkbox"
       checked={enabled}
-      onchange={(e) => onchange({ enabled: e.currentTarget.checked, excludeList })}
+      onchange={(e) => change({ enabled: e.currentTarget.checked })}
     />
     <span>{t("settings.auto.label")}</span>
   </label>
@@ -38,10 +66,30 @@
       type="text"
       value={excludeList}
       placeholder={t("settings.exclude.placeholder")}
-      oninput={(e) => onchange({ enabled, excludeList: e.currentTarget.value })}
+      oninput={(e) => change({ excludeList: e.currentTarget.value })}
     />
   </label>
   <p class="note">{t("settings.exclude.note")}</p>
+
+  <label class="row spaced">
+    <input
+      type="checkbox"
+      checked={confirmBeforeIdentify}
+      onchange={(e) => change({ confirmBeforeIdentify: e.currentTarget.checked })}
+    />
+    <span>{t("settings.confirm.label")}</span>
+  </label>
+  <p class="note">{t("settings.confirm.note")}</p>
+
+  <label class="row spaced">
+    <input
+      type="checkbox"
+      checked={startWithWindows}
+      onchange={(e) => change({ startWithWindows: e.currentTarget.checked })}
+    />
+    <span>{t("settings.startup.label")}</span>
+  </label>
+  <p class="note">{t("settings.startup.note")}</p>
 
   {#if !writable}
     <p class="note warn">{t("settings.unsaved")}</p>
@@ -65,6 +113,8 @@
     left: 50%;
     transform: translate(-50%, -50%);
     width: min(520px, calc(100vw - 32px));
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
     background: var(--bg-header);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -82,6 +132,10 @@
     align-items: center;
     gap: 8px;
     font-size: 13px;
+  }
+
+  .row.spaced {
+    margin-top: 16px;
   }
 
   .field {
