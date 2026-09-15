@@ -1,0 +1,174 @@
+name: Release
+
+# Started by hand from the Actions tab, not by pushing a tag.
+#
+# The difference is which side decides the version. With a tag push a person
+# picks the number and has to have already edited Cargo.toml to match; here the
+# workflow computes the next number from the current one, writes it back and
+# tags what it built. The two cannot disagree.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: How much to raise the version
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      dry_run:
+        description: Build only — no version bump, tag, release or WinGet submission
+        type: boolean
+        default: false
+
+# Two runs would read the same current version and race to push the same next
+# one, so they are serialised rather than cancelled: cancelling one that had
+# already pushed its bump would leave the repository half-released.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Work out the next version
+        id: version
+        shell: pwsh
+        run: |
+          # The version lives once, under [workspace.package] in the root
+          # Cargo.toml. tauri.conf.json deliberately has no `version` field, so
+          # Tauri reads it from here and the two can never drift apart.
+          $manifest = Get-Content Cargo.toml -Raw
+          $pattern = '(?ms)^\[workspace\.package\]\r?\n(?:(?!^\[).)*?^version\s*=\s*"(\d+)\.(\d+)\.(\d+)"'
+          if ($manifest -notmatch $pattern) {
+            throw 'No version found under [workspace.package] in Cargo.toml'
+          }
+          $major = [int]$Matches[1]
+          $minor = [int]$Matches[2]
+          $patch = [int]$Matches[3]
+          $current = "$major.$minor.$patch"
+
+          switch ('${{ inputs.bump }}') {
+            'major' { $major++; $minor = 0; $patch = 0 }
+            'minor' { $minor++; $patch = 0 }
+            'patch' { $patch++ }
+          }
+          $next = "$major.$minor.$patch"
+
+          Write-Host "$current -> $next"
+          "current=$current" >> $env:GITHUB_OUTPUT
+          "next=$next" >> $env:GITHUB_OUTPUT
+
+      - name: Write the version back
+        if: ${{ !inputs.dry_run }}
+        shell: pwsh
+        run: |
+          $next = '${{ steps.version.outputs.next }}'
+          $current = '${{ steps.version.outputs.current }}'
+          $pattern = '(?ms)(^\[workspace\.package\]\r?\n(?:(?!^\[).)*?^version\s*=\s*")\d+\.\d+\.\d+(")'
+          $manifest = Get-Content Cargo.toml -Raw
+          $updated = [regex]::Replace($manifest, $pattern, "`${1}$next`${2}")
+          Set-Content Cargo.toml -Value $updated -NoNewline
+
+          # Read it back rather than trusting the substitution: a manifest this
+          # step mangled would otherwise only surface as a mis-versioned release.
+          $check = Get-Content Cargo.toml -Raw
+          if ($check -notmatch '(?ms)^\[workspace\.package\]\r?\n(?:(?!^\[).)*?^version\s*=\s*"([^"]+)"') {
+            throw 'Cargo.toml no longer parses after the version rewrite'
+          }
+          if ($Matches[1] -ne $next) {
+            throw "Version rewrite did not take: expected $next, found $($Matches[1])"
+          }
+
+          # Keeps the recorded workspace member versions in step. Only the
+          # workspace packages, so no dependency is silently upgraded here.
+          cargo update --workspace
+
+      - name: Commit the bump
+        id: commit
+        if: ${{ !inputs.dry_run }}
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Cargo.toml Cargo.lock
+          git commit -m 'chore: release v${{ steps.version.outputs.next }}'
+          git push
+          "sha=$(git rev-parse HEAD)" >> $env:GITHUB_OUTPUT
+
+      - name: Build
+        run: npx tauri build
+
+      - name: Pack the portable ZIP
+        id: portable
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.next }}'
+          $staging = 'portable-staging'
+          New-Item -ItemType Directory -Force $staging | Out-Null
+
+          Copy-Item 'target/release/wsl-usb-identity-manager.exe' $staging
+          Copy-Item 'LICENSE' $staging
+          Copy-Item 'README.md' $staging
+
+          # This file is what makes the application keep its settings and log
+          # beside the executable instead of under %APPDATA% (requirement R7.2).
+          @(
+            'The presence of this file makes WSL USB Identity Manager keep its',
+            'settings (devices.json) and log (wuim.log) in this folder rather',
+            'than under %APPDATA% and %LOCALAPPDATA%.',
+            '',
+            'Delete it to use the per-user locations instead.'
+          ) | Set-Content "$staging/portable.txt"
+
+          $zip = "wsl-usb-identity-manager_${version}_x64_portable.zip"
+          Compress-Archive -Path "$staging/*" -DestinationPath $zip -Force
+          "path=$zip" >> $env:GITHUB_OUTPUT
+
+      - name: Publish the release
+        if: ${{ !inputs.dry_run }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Resolved rather than globbed: the bundle name contains the product
+          # name, which has spaces in it.
+          $setup = Get-ChildItem 'target/release/bundle/nsis/*-setup.exe' | Select-Object -First 1
+          if (-not $setup) { throw 'No NSIS installer was produced' }
+
+          gh release create 'v${{ steps.version.outputs.next }}' `
+            --target '${{ steps.commit.outputs.sha }}' `
+            --title 'v${{ steps.version.outputs.next }}' `
+            --generate-notes `
+            $setup.FullName `
+            '${{ steps.portable.outputs.path }}'
+
+      # Opens a pull request against microsoft/winget-pkgs. It updates an
+      # existing package, so the very first version has to be submitted by hand
+      # once — see docs/release.md. Skipped entirely until the repository
+      # variable naming the package is set.
+      - name: Submit to WinGet
+        if: ${{ !inputs.dry_run && vars.WINGET_IDENTIFIER != '' }}
+        uses: vedantmgoyal9/winget-releaser@main
+        with:
+          identifier: ${{ vars.WINGET_IDENTIFIER }}
+          version: ${{ steps.version.outputs.next }}
+          release-tag: v${{ steps.version.outputs.next }}
+          # Only the installer. The portable ZIP is published on the release
+          # page but deliberately not offered through WinGet (§9.2).
+          installers-regex: '-setup\.exe$'
+          token: ${{ secrets.WINGET_TOKEN }}

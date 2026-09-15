@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A superseded push has nothing left to tell us.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # Windows only, because the application is: device enumeration, usbipd and
+    # the elevation path have no counterpart to exercise anywhere else.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Formatting
+        run: cargo fmt --check
+
+      # Warnings fail the build because the tree is at zero and keeping it there
+      # costs nothing, while clearing a backlog later costs plenty.
+      - name: Lints
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test
+
+      # `npm run build` is svelte-check followed by the production bundle, so
+      # this covers the frontend types and that it compiles.
+      - name: Frontend
+        run: npm run build
+
+      # Deliberately not `tauri build`: packaging takes around seven minutes and
+      # breaks rarely. The release workflow packages, and a packaging failure
+      # there costs one re-run rather than a broken release.
