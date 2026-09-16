@@ -53,6 +53,30 @@ Anything else — Arduino, RP2040, STM32, or a bare adapter with an unknown boar
 — is identified down to the transport only, and says so rather than pretending
 otherwise. Adding a family is meant to be additive.
 
+## What it does
+
+**Shares and attaches.** `usbipd` has to be sharing a device before WSL can take it, so
+a row offers share, attach, detach and stop sharing in the order they are used. Sharing
+needs administrator rights; the prompt appears at that moment and nowhere else, so the
+application itself runs unelevated. A device that is only a bind record — shared once,
+now unplugged — can still be un-shared.
+
+**Identifies.** Press identify on a row to ask the board what it is. A device with no
+serial number is identified on its own in the seconds after it is plugged in, before
+anything has opened it; that can be switched off, or a VID:PID excluded from it. An
+adapter that reports a serial number is left alone by that rule, so identify-all is
+there for the rest.
+
+**Attaches automatically.** A rule names a device by its board ID, its USB serial
+number, its VID:PID or its bus id, and matching devices are handed to WSL as soon as
+`usbipd` is sharing them. The switch is in the toolbar, not buried in a dialog.
+
+Two things it deliberately will not do on your behalf: it never *shares* a device
+automatically, because that needs administrator rights and an automatic action should
+not raise a UAC prompt, and it never identifies a board in order to decide whether to
+attach it — a board-ID rule waits until the board has been identified for its own
+reasons.
+
 ## The approach
 
 Separate **where a device is plugged in** from **what device it is**.
@@ -62,7 +86,7 @@ Separate **where a device is plugged in** from **what device it is**.
 | Runtime connection | bus ID, COM number, `/dev/ttyUSB0`, attach state | shown, never used as a name |
 | USB identity | VID/PID, USB serial, port path | read from Windows every time |
 | Target identity | the board ID read from the target itself | for as long as the device stays plugged in |
-| Your own labels | alias, memo, attach settings | saved |
+| Your own settings | auto-attach rules, what to leave alone | saved |
 
 Anything that cannot be pinned down from USB descriptors is identified by **asking the
 target board itself** — the same conclusion
@@ -84,7 +108,7 @@ belong to something else.
 ## Scope
 
 This tool owns the Windows side: enumeration, identification, `usbipd` state and
-operations, the WSL distribution to attach to, and your own labels and notes.
+operations, and the rules for attaching to WSL automatically.
 
 It does **not** manage anything inside WSL — no udev rules, no device node permissions,
 no symlinks. Those stay with the existing Linux-side tooling. When the information is
@@ -116,9 +140,9 @@ download has built up a reputation.
 Design documents are in Japanese.
 
 - [Requirements](docs/requirements.ja.md)
-- [Research findings](docs/research-findings.ja.md) — measurements this design is based on
+- [Measured facts](docs/research-findings.ja.md) — the measurements this design rests on
 - [Identification policy](docs/identification-policy.ja.md)
-- [Platform evaluation](docs/platform-evaluation.ja.md)
+- [Release procedure](docs/release.md) (English)
 
 ## Related projects
 

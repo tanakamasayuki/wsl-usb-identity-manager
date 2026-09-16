@@ -8,17 +8,22 @@ Releases are started by hand from the **Actions** tab, not by pushing a tag.
 
 1. Actions → **Release** → *Run workflow*.
 2. Choose how much to raise the version (`patch`, `minor`, `major`).
-   The first release should be `minor`, which takes `0.0.0` to `0.1.0`.
 3. Leave *dry run* off. With it on the workflow builds and stops — no version
    bump, no tag, no release, no WinGet submission.
 
 The workflow then:
 
 - reads the current version from `[workspace.package]` in the root `Cargo.toml`,
-  raises it, writes it back and commits the change;
+  raises it, writes it back and reads it again to check;
+- closes the `## Unreleased` section of `CHANGELOG.md` into `## <version> - <date>`,
+  leaving the `## Unreleased` heading in place and empty;
+- commits the bump and the changelog, and pushes;
 - builds, producing the NSIS installer and a portable ZIP;
-- creates the GitHub release `v<version>` at that commit and attaches both;
+- creates the GitHub release `v<version>` at that commit, attaches both, and uses
+  the section it just closed as the release notes;
 - opens a pull request against `microsoft/winget-pkgs`, if WinGet is set up.
+
+Write what belongs in a release into `## Unreleased` in `CHANGELOG.md` as you go.
 
 ### The version lives in one place
 

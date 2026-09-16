@@ -3,7 +3,7 @@
 //! The eFuse MAC is burned at the factory and is unique per chip, which makes it
 //! the one thing that tells two boards behind identical CH340s apart.
 //!
-//! The protocol work is espflash's, not ours (docs/platform-evaluation.ja.md §5).
+//! The protocol work is espflash's, not ours (requirements §11).
 
 use std::collections::BTreeMap;
 use std::time::Duration;

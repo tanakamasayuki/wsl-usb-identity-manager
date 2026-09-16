@@ -2,8 +2,7 @@
 
 本書は本アプリケーションの要件を定義する。
 根拠となる実測は [research-findings.ja.md](research-findings.ja.md)、
-識別方式の設計は [identification-policy.ja.md](identification-policy.ja.md)、
-技術選定は [platform-evaluation.ja.md](platform-evaluation.ja.md) に分離している。
+識別方式の設計は [identification-policy.ja.md](identification-policy.ja.md) に分離している。
 
 ---
 
@@ -191,8 +190,11 @@ Memo                必須
 Tags
 用途 / 設置場所 / 管理番号
 Default WSL Distribution
-Auto Attach 設定
 ```
+
+自動 Attach はデバイスごとの属性ではなく、
+**条件の一覧**として持つ（§9）。同じ条件が複数のデバイスに一致しうるため、
+デバイスの側に持たせると同じ設定が分散する。
 
 ---
 
@@ -275,15 +277,6 @@ Transport と Target が同一であり、問い合わせずとも判るため�
 > 見落としとしてではなく選択として記録する。
 > 一括識別（R4.19）がこの穴を埋める手段である。
 
-**要件 R4.19**: 接続中の未識別デバイスを**まとめて識別する**操作を提供する。
-自動識別の対象外となったものを、利用者が 1 操作で識別できること。
-
-**要件 R4.20**: 猶予時間内は、プローブを実行できるようになるまで再試行する。
-
-> デバイスが Windows に見えてから COM ポートが割り当てられるまでには間がある。
-> 到達した瞬間に 1 度だけ判定すると、自動識別はたいてい負ける。
-> 試行の上限を与えるのは猶予時間であって、最初の 1 回ではない。
-
 **要件 R4.9**: 除外された VID/PID のデバイスへ、自動でデータを送信してはならない。
 
 > **許可リストではなく除外リストである理由**
@@ -293,6 +286,15 @@ Transport と Target が同一であり、問い合わせずとも判るため�
 > 許可リストを作ると結局よく使われるブリッジを全て並べることになり、
 > 除外リストと同じ効果を回りくどく実現するだけである。
 > 触られては困る機器を名指しする方が、実態に合う。
+
+**要件 R4.19**: 接続中の未識別デバイスを**まとめて識別する**操作を提供する。
+自動識別の対象外となったものを、利用者が 1 操作で識別できること。
+
+**要件 R4.20**: 猶予時間内は、プローブを実行できるようになるまで再試行する。
+
+> デバイスが Windows に見えてから COM ポートが割り当てられるまでには間がある。
+> 到達した瞬間に 1 度だけ判定すると、自動識別はたいてい負ける。
+> 試行の上限を与えるのは猶予時間であって、最初の 1 回ではない。
 
 ### 4.5 識別子フォーマット
 
@@ -447,6 +449,8 @@ GUI から以下を実行できること。
 **要件 R5.4**: BUSID は操作を発行する直前に `usbipd state` から取得した値を用いる。
 記録した BUSID を再利用してはならない。
 
+**要件 R5.5**: 操作対象のデバイスを、ユーザーが識別情報を確認した上で選べること。
+
 **要件 R5.11**: 未接続のデバイスに対して BUSID を要する操作を提示してはならない。
 
 共有の記録はデバイスが無くなっても残るため、
@@ -457,8 +461,6 @@ GUI から以下を実行できること。
 > `PersistedGuid` を識別子として保存してはならない（R7.1）という制約と矛盾しない。
 > ここでの用途は、操作の直前に `usbipd state` から読んだ値を
 > そのコマンドに渡すだけであり、R5.4 と同じ扱いである。
-
-**要件 R5.5**: 操作対象のデバイスを、ユーザーが識別情報を確認した上で選べること。
 
 ### 5.3 権限設計
 
@@ -535,7 +537,6 @@ User Metadata（対象ごと。§3.5）
   key                      R7.7 のキー
   alias / memo / tags
   default_wsl_distribution
-  auto_attach
 ```
 
 **要件 R7.7**: User Metadata のキーは、USB シリアルがあればそれを用い、
@@ -759,10 +760,20 @@ Windows / USB の認識名はそのまま残し、識別結果は別の列に示
 USB Identity        VID / PID / Serial / Manufacturer / Product /
                     Instance ID / Location Path / Driver Service
 Application Identity Device ID / Device Type / HW Revision / FW Version / Role
-User Metadata       Alias / Memo / Tags / Default WSL / Auto Attach
-Runtime Connection  BUSID / COM / Shared / Attached / Distribution
+User Metadata       Alias / Memo / Tags / Default WSL
+Runtime Connection  BUSID / COM / Shared / Attached / Attach 先クライアント
 WSL State           デバイスノード / シンボリックリンク（参照のみ）
 ```
+
+あわせて、選択中のデバイスに対する操作を置く。
+
+- `usbipd` の操作（§5.2）と識別（§4.3）
+- **自動 Attach の条件の選択**（R9.11）
+
+**要件 R10.13**: 詳細画面の値は選択してコピーできること。
+
+> ここに出ている値は、`usbipd` のコマンドや issue に貼るためのものである。
+> 読めても取り出せなければ、結局手で書き写すことになる。
 
 ### 10.3 設定画面
 
@@ -771,6 +782,9 @@ WSL State           デバイスノード / シンボリックリンク（参照
 - Windows へのサインイン時の自動起動
 - 既定の WSL Distribution
 - 表示言語（§10.4）
+
+自動 Attach の有効／無効と条件は、**この画面には置かない**。
+切り替えはメイン画面（R9.9）、条件は専用画面（R9.10）が扱う。
 
 **要件 R10.8**: 設定が保存できない状態（R7.5 で読み込みを拒否した場合等）では、
 その旨を設定画面に示す。保存されない設定は、保存されると誤解される方が害が大きい。
@@ -817,8 +831,6 @@ VID / PID の数値だけでは製造元が判らないため、
 
 ## 11. 技術スタック
 
-決定の根拠は [platform-evaluation.ja.md](platform-evaluation.ja.md) を参照。
-
 | レイヤ | 採用 |
 | --- | --- |
 | 言語 | Rust |
@@ -829,18 +841,48 @@ VID / PID の数値だけでは製造元が判らないため、
 | WCH-Link プローブ | [ch32rv](https://github.com/ch32-riscv-ug/ch32rv) の crate（`ch32rv-wchlink` / `ch32rv-usb` / `ch32rv-target`） |
 | ESP32 プローブ | `espflash` crate |
 
+> **GUI に Tauri（WebView2）を用いる根拠**
+>
+> - 一覧・詳細ペイン・設定画面という UI は、HTML/CSS が最も実装量が少ない。
+> - Alias / Memo に日本語を入力する（§3.5）ため、IME が確実に動くことが要る。
+>   WebView2 は OS のテキスト入力機構そのものである。
+> - 日本語表示に追加フォントの同梱が要らない。OS のフォントを使う。
+>   Rust 製のネイティブ GUI は、任意の漢字が入る以上 subset できず、
+>   CJK フォント（5〜8 MB）の同梱が必要になる。
+>
+> 代償は WebView2 への依存であり、§11.2 の通り検出でき、欠落は例外的である。
+
+### 11.1 役割分担
+
 **要件 R11.1**: デバイスの列挙と識別情報の取得は `CfgMgr32` が担当する。
 `nusb` による列挙はプローブの内部事情であり、一覧の情報源にしてはならない。
-（`nusb` は Windows において、デバイス全体が特定ドライバにバインドされている場合に
-シリアル番号を取得できないため。CH340 が該当する）
+
+> `nusb` は Windows において、デバイス全体が特定ドライバにバインドされている場合に
+> シリアル番号を取得できない。CH340（`CH341SER_A64`）が該当する。
+> `CfgMgr32` は Instance ID / LocationPaths / ContainerId / Service を返すため、
+> 情報量でも上回る（F3）。
+
+### 11.2 WebView2
 
 **要件 R11.2**: 起動時に WebView2 Runtime の有無を確認する。
 未導入の場合はダウンロード先を案内して終了する。
 
+以下のいずれかが存在し、`pv` が `0.0.0.0` 以外であれば導入済みである。
+
 ```text
-HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}\pv
-HKCU\Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}\pv
+HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}\pv   per-machine
+HKCU\Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}\pv                per-user
 ```
+
+- Windows 11 は OS に同梱する。
+- Windows 10 は「大多数の端末に導入済み」と Microsoft が明記している。
+  例外として Windows Server、LTSC、Windows Update から切り離された端末がある。
+- 導入は Evergreen Bootstrapper（約 2 MB、
+  `MicrosoftEdgeWebview2Setup.exe /silent /install`）で行える。
+  Fixed Version（250 MB 超）は採用しない。
+
+インストーラ版は NSIS の `webviewInstallMode`（`downloadBootstrapper`）が
+インストール時に解決するため、この検査は主にポータブル版のためのものである。
 
 ### 11.3 ch32rv への依存方針
 
@@ -909,13 +951,30 @@ wsl-usb-identity-manager_<version>_x64_setup.exe     NSIS / per-user / 管理者
 wsl-usb-identity-manager_<version>_x64_portable.zip  ポータブル（portable.txt 同梱）
 ```
 
-**要件 R12.1**: MSI は提供しない（per-machine と per-user の併存を避けるため）。
+**要件 R12.1**: MSI は提供しない。
+
+> per-machine（MSI）と per-user（NSIS）が併存すると、
+> 同じアプリが 2 箇所に入り、更新経路が二重化する。
 
 **要件 R12.2**: 自動更新機構は実装しない。
 更新は `winget upgrade` または ZIP の差し替えによる。
 
+> 自己更新と WinGet が併存すると、winget 側の記録とインストール実体がずれる。
+> また Tauri の updater は署名を必須とし、鍵を失うと以後の更新を配信できない。
+
 **要件 R12.3**: WinGet には NSIS インストーラのみを登録する
 （`InstallerType: nullsoft`）。ポータブル ZIP は GitHub Release で直接配布する。
+
+> WinGet は `nullsoft` 指定時にサイレントインストールのスイッチを自動設定する。
+> community repository はサイレント対応を必須としている。
+> `zip` でも登録できるが `NestedInstallerType` の指定が要り、
+> GUI アプリを WinGet の Links シムに置く形になる。
+
+**要件 R12.9**: ポータブル ZIP は、ビルド成果の実行ファイルとリソースをまとめて作る。
+
+> Tauri はポータブル形式を正式にはサポートしない。
+> この ZIP は WebView2 が導入済みの環境向けであり、
+> インストーラのようにブートストラッパを埋め込めない（§11.2）。
 
 ### 12.2 バージョン管理
 
@@ -928,18 +987,7 @@ wsl-usb-identity-manager_<version>_x64_portable.zip  ポータブル（portable.
 手動起動する。タグ push によるリリースは行わない。
 
 起動時に bump レベル（`major` / `minor` / `patch`）を指定する。
-
-```text
-workflow_dispatch (bump: major|minor|patch)
-  1. Cargo.toml の version を bump
-  2. CHANGELOG.md の ## Unreleased の内容を ## <version> セクションへ移動
-     （## Unreleased の見出しは空のまま残す）
-  3. 変更をコミットして既定ブランチへ push
-  4. ビルド（NSIS インストーラ + ポータブル ZIP）
-  5. CHANGELOG.md の ## <version> セクションを抽出してリリース本文を生成
-  6. タグを作成し GitHub Release を公開
-  7. winget-pkgs へマニフェストの PR を作成
-```
+手順の詳細は [release.ja.md](release.ja.md) にある。
 
 **要件 R12.6**: 変更点は開発時に `CHANGELOG.md` の `## Unreleased` に記載する。
 リリース処理がバージョン番号を差し込み、その内容をリリース本文に転記する。
@@ -1037,6 +1085,15 @@ workflow_dispatch (bump: major|minor|patch)
 **要件 R14.4**: `CHANGELOG.md` は単一ファイルとし、
 各項目を `(EN)` と `(JA)` の対で記述する。
 
+**要件 R14.5**: `docs/` に置くのは、**決まったこと**と、
+その根拠となる**事実**に限る。
+検討の経過、却下した案、過去にどうだったかは書かない。
+
+> 経過が混ざると、読む側はまずどれが現在の仕様なのかを判断させられる。
+> 根拠は「なぜこの仕様なのか」を答えるので残すが、
+> 「どう考えて辿り着いたか」は答えない。
+> 変更の履歴は Git と `CHANGELOG.md` が持っている。
+
 ---
 
 ## 15. 機能の範囲
@@ -1047,19 +1104,20 @@ workflow_dispatch (bump: major|minor|patch)
 | --- | --- |
 | USB デバイス一覧（接続中 / Attach 中の双方） | §10.1 |
 | VID / PID / USB Serial / Windows 認識名 / BUSID / ポートパスの表示 | §3.2、§10.2 |
-| Transport と Target の区別表示 | §3.1（R3.1） |
-| `usbipd` 状態の表示（Shared / Attached / Distribution） | §5.2 |
+| USB シリアル番号とボードの区別表示（Transport / Target） | §3.1（R3.1）、§10.1（R10.12） |
+| `usbipd` 状態の表示（Shared / Attached / Attach 先） | §5.2 |
 | Bind / Unbind / Attach / Detach | §5.2、§5.3 |
 | Attach 先 WSL Distribution の選択 | §6 |
 | 明示的な操作による Target の識別 | §4.3、§4.6 |
 | 接続直後の自動識別 | §4.4 |
 | 識別済みと未識別の区別表示 | §4.2（R4.4） |
 | ユーザー定義名称（Alias）とメモ | §3.5、§7.1 |
-| 自動 Attach（ボード ID / USB シリアル / VID:PID / BUSID の条件） | §9 |
+| 自動 Attach（ボード ID / USB シリアル番号 / VID:PID / BUSID の条件） | §9 |
 | 多重起動の防止 | §13.3（R13.10） |
 | USB の接続・切断に追従する一覧更新 | §8 |
 | 表示言語の自動判定と手動選択 | §10.4 |
 | Windows へのサインイン時の自動起動 | §7.1 |
+| 一括識別 | §4.4（R4.19） |
 | 診断ログ | §13.4 |
 
 対応していない Target 系統（Arduino / RP2040 / STM32 等）、
@@ -1109,9 +1167,9 @@ WSL 内部の既存処理（udev / board-identify）が動作
 
 ## 17. 参照
 
-- [research-findings.ja.md](research-findings.ja.md) — 実測による事前調査結果
-- [identification-policy.ja.md](identification-policy.ja.md) — 識別ポリシーの設計
-- [platform-evaluation.ja.md](platform-evaluation.ja.md) — 言語・フレームワーク・配布方式の評価
+- [research-findings.ja.md](research-findings.ja.md) — 実測で確認した事実
+- [identification-policy.ja.md](identification-policy.ja.md) — 識別方式の設計
+- [release.ja.md](release.ja.md) — リリース手順
 - [board-identify](https://github.com/tanakamasayuki/board-identify) — WSL 側の識別ツール
 - [ch32rv](https://github.com/ch32-riscv-ug/ch32rv) — WCH-Link プローブの実装
 - [usbipd-win](https://github.com/dorssel/usbipd-win)

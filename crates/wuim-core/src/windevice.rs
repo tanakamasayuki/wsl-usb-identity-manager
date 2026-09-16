@@ -2,7 +2,7 @@
 //!
 //! CfgMgr32 owns enumeration and identity information. nusb is not used here:
 //! on Windows it only reports serial numbers for composite devices bound to
-//! usbccgp, which excludes the CH340 (docs/platform-evaluation.ja.md §3).
+//! usbccgp, which excludes the CH340 (requirements R11.1).
 
 use anyhow::{Result, anyhow};
 use serde::Serialize;

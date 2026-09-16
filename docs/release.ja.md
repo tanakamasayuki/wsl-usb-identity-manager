@@ -7,18 +7,23 @@
 ## リリースする
 
 1. Actions → **Release** → *Run workflow*
-2. バージョンの上げ幅を選ぶ（`patch` / `minor` / `major`）。
-   初回は `minor`。`0.0.0` → `0.1.0` になる。
+2. バージョンの上げ幅を選ぶ（`patch` / `minor` / `major`）
 3. *dry run* はオフのまま。オンにするとビルドだけ行って止まる。
    バージョンの更新もタグもリリースも WinGet 提出も行われない。
 
 ワークフローの動作:
 
 - ルート `Cargo.toml` の `[workspace.package]` から現在のバージョンを読み、
-  上げて書き戻し、コミットする
+  上げて書き戻し、読み直して検証する
+- `CHANGELOG.md` の `## Unreleased` の内容を `## <version> - <日付>` へ閉じ、
+  `## Unreleased` の見出しは空のまま残す
+- バージョンとチェンジログの変更をコミットして push する
 - ビルドして NSIS インストーラとポータブル ZIP を作る
-- そのコミットに `v<version>` の GitHub Release を作り、両方を添付する
+- そのコミットに `v<version>` の GitHub Release を作り、両方を添付する。
+  リリース本文は上で閉じたチェンジログの節をそのまま使う
 - WinGet の設定が済んでいれば `microsoft/winget-pkgs` へ PR を出す
+
+リリースに載せたい変更は、開発中に `CHANGELOG.md` の `## Unreleased` に書いておく。
 
 ### バージョンは 1 箇所にしかない
 
