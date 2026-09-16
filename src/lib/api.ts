@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type {
   Availability,
   DeviceView,
@@ -7,6 +8,7 @@ import type {
   Settings,
   StoredSettings,
   TargetIdentity,
+  TrayView,
 } from "./types";
 
 /**
@@ -47,6 +49,31 @@ export function checkUsbipd(): Promise<Availability> {
  */
 export function openTarget(target: OpenTarget): Promise<void> {
   return invoke("open_target", { target });
+}
+
+/** Puts the current labels and counts into the tray menu. */
+export function setTray(view: TrayView): Promise<void> {
+  return invoke("set_tray", { view });
+}
+
+/** Hides the window, leaving the application running in the tray. */
+export function hideWindow(): Promise<void> {
+  return invoke("hide_window");
+}
+
+/**
+ * Runs `handler` when the backend asks the window to close.
+ *
+ * The backend stops the close and asks, rather than hiding by itself, so the
+ * first time it happens the user can be told that closing is not quitting.
+ */
+export function onCloseRequested(handler: () => void): Promise<() => void> {
+  return listen("close-requested", handler);
+}
+
+/** Runs `handler` when the settings changed outside the window — from the tray. */
+export function onSettingsChanged(handler: () => void): Promise<() => void> {
+  return listen("settings-changed", handler);
 }
 
 /** Reads the current state. Probes nothing, so it is safe to poll. */

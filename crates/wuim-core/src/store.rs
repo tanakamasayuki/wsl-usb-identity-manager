@@ -68,6 +68,13 @@ pub struct Settings {
     /// What to attach automatically. An empty list attaches nothing, whatever
     /// [`Self::auto_attach`] says.
     pub auto_attach_rules: Vec<Rule>,
+    /// Whether the user has been told that closing the window leaves the
+    /// application running in the tray.
+    ///
+    /// Asked once. "I closed it and it is still running" is the one thing about
+    /// a tray application that has to be said out loud, and saying it every
+    /// time would be worse than not saying it at all.
+    pub told_about_tray: bool,
 }
 
 impl Settings {
@@ -91,6 +98,7 @@ impl Default for Settings {
             // is not something to start doing on a fresh install.
             auto_attach: false,
             auto_attach_rules: Vec::new(),
+            told_about_tray: false,
         }
     }
 }

@@ -95,6 +95,15 @@ const en = {
   "detail.auto_attach.off": "Auto-attach is off, so these rules are not acted on.",
   "detail.auto_attach.none": "Not attached automatically.",
 
+  "app.name": "WSL USB Identity Manager",
+  "tray.status": "Connected {connected} / shared {shared} / in WSL {attached}",
+  "tray.open": "Open",
+  "tray.quit": "Quit",
+  "tray.notice.title": "Closing leaves this running",
+  "tray.notice.body":
+    "The window closes to the notification area. It keeps running there because automatic attach and automatic identification only work while it does. Quit from the tray icon when you want it stopped.",
+  "tray.notice.ok": "Got it",
+
   "usbipd.not_installed": "usbipd-win is not installed.",
   "usbipd.not_installed.what":
     "This application drives usbipd-win; without it there is nothing to list or attach. Install it, then press Refresh.",
@@ -120,7 +129,7 @@ const en = {
     "Off skips the warning and identifies straight away. The board still restarts; you just stop being told.",
   "settings.startup.label": "Start with Windows",
   "settings.startup.note":
-    "Adds an entry under the current user's Run key. No administrator rights, and no effect on other accounts. There is no tray icon yet, so the window opens at every sign-in.",
+    "Adds an entry under the current user's Run key. No administrator rights, and no effect on other accounts. Started this way it goes straight to the notification area, without opening a window.",
   "settings.exclude.label": "Never identify these VID:PID (comma separated)",
   "settings.exclude.placeholder": "1a86:7523, 10c4:ea60",
   "settings.exclude.note":
@@ -297,6 +306,15 @@ const ja: Record<Key, string> = {
   "detail.auto_attach.off": "自動 Attach が OFF のため、条件は実行されません。",
   "detail.auto_attach.none": "自動接続しません。",
 
+  "app.name": "WSL USB Identity Manager",
+  "tray.status": "接続中 {connected} / 共有 {shared} / WSL {attached}",
+  "tray.open": "開く",
+  "tray.quit": "終了",
+  "tray.notice.title": "閉じても終了しません",
+  "tray.notice.body":
+    "ウィンドウは通知領域に収まります。自動 Attach と接続直後の自動識別は動いている間しか効かないため、そこで動き続けます。止めるときはトレイアイコンから終了してください。",
+  "tray.notice.ok": "わかりました",
+
   "usbipd.not_installed": "usbipd-win がインストールされていません。",
   "usbipd.not_installed.what":
     "本アプリは usbipd-win を操作するツールです。これが無いと、一覧に出すものも接続するものもありません。インストールしてから「更新」を押してください。",
@@ -322,7 +340,7 @@ const ja: Record<Key, string> = {
     "オフにすると警告を出さずに即座に識別します。ボードが再起動することは変わりません。知らされなくなるだけです。",
   "settings.startup.label": "Windows と一緒に起動する",
   "settings.startup.note":
-    "現在のユーザーの Run キーに登録します。管理者権限は不要で、他のアカウントには影響しません。タスクトレイ常駐はまだ無いので、サインインのたびにウィンドウが開きます。",
+    "現在のユーザーの Run キーに登録します。管理者権限は不要で、他のアカウントには影響しません。この経路で起動したときはウィンドウを開かず、通知領域に入ります。",
   "settings.exclude.label": "識別しない VID:PID（カンマ区切り）",
   "settings.exclude.placeholder": "1a86:7523, 10c4:ea60",
   "settings.exclude.note":

@@ -97,6 +97,7 @@ pub struct SettingsView {
     pub start_with_windows: bool,
     pub auto_attach: bool,
     pub auto_attach_rules: Vec<Rule>,
+    pub told_about_tray: bool,
 }
 
 impl From<&Settings> for SettingsView {
@@ -108,6 +109,7 @@ impl From<&Settings> for SettingsView {
             start_with_windows: settings.start_with_windows,
             auto_attach: settings.auto_attach,
             auto_attach_rules: settings.auto_attach_rules.clone(),
+            told_about_tray: settings.told_about_tray,
         }
     }
 }
@@ -121,6 +123,7 @@ impl From<SettingsView> for Settings {
             start_with_windows: view.start_with_windows,
             auto_attach: view.auto_attach,
             auto_attach_rules: view.auto_attach_rules,
+            told_about_tray: view.told_about_tray,
         }
         // Whatever the frontend sent, the stored list holds no blanks and no
         // repeats.
@@ -344,6 +347,7 @@ mod tests {
         assert!(object.contains_key("startWithWindows"), "{keys:?}");
         assert!(object.contains_key("autoAttach"), "{keys:?}");
         assert!(object.contains_key("autoAttachRules"), "{keys:?}");
+        assert!(object.contains_key("toldAboutTray"), "{keys:?}");
     }
 
     /// The rule kinds cross the boundary as strings the frontend switches on
@@ -368,7 +372,7 @@ mod tests {
     fn settings_come_back_from_what_the_frontend_sends() {
         let sent = r#"{"autoIdentify": false, "autoExclude": ["1a86:7523"],
                        "confirmBeforeIdentify": false, "startWithWindows": true,
-                       "autoAttach": true,
+                       "autoAttach": true, "toldAboutTray": true,
                        "autoAttachRules": [{"kind": "vid_pid", "value": "1a86:7523"},
                                            {"kind": "vid_pid", "value": "1A86:7523"}]}"#;
         let view: SettingsView = serde_json::from_str(sent).unwrap();
@@ -379,6 +383,7 @@ mod tests {
         assert!(!settings.confirm_before_identify);
         assert!(settings.start_with_windows);
         assert!(settings.auto_attach);
+        assert!(settings.told_about_tray);
         // The same rule twice is one rule by the time it is stored.
         assert_eq!(settings.auto_attach_rules.len(), 1);
     }

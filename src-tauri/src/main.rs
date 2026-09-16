@@ -2,16 +2,20 @@
 // panics and logs are visible while developing.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use wuim_core::{shell_open, single_instance, webview2};
+use tauri::Emitter;
+use wuim_core::{autostart, shell_open, single_instance, webview2};
 
 mod commands;
 mod logging;
 mod preflight;
 mod state;
+mod tray;
 mod view;
 
 fn main() {
     logging::init();
+
+    let started_hidden = std::env::args().any(|arg| arg == autostart::HIDDEN_ARG);
 
     // Before anything builds a window: the window is a WebView2 control, so
     // without the runtime there is nothing to draw the interface in and nothing
@@ -66,8 +70,41 @@ fn main() {
             commands::read_settings,
             commands::write_settings,
             commands::check_usbipd,
-            commands::open_target
+            commands::open_target,
+            commands::set_tray,
+            commands::hide_window
         ])
+        .setup(move |app| {
+            // Not fatal: without a tray the window still works, and refusing to
+            // start would be a worse answer than starting without an icon.
+            // Relaunching brings a hidden window back either way (R10.19).
+            if let Err(e) = tray::create(app.handle()) {
+                logging::error(&format!("could not create the tray icon: {e:#}"));
+            }
+            // Started by the `Run` entry, so the window stays in the tray:
+            // signing in is not a request to be interrupted. The window itself
+            // is created hidden (tauri.conf.json), so nothing flashes either
+            // way.
+            if started_hidden {
+                logging::info("started hidden; the window is in the tray");
+            } else {
+                tray::show(app.handle());
+            }
+            Ok(())
+        })
+        // Closing the window does not stop the application: automatic attach
+        // and automatic identification only run while it is alive (R10.14).
+        // The frontend decides what to say about that, so it is asked rather
+        // than the window simply being hidden here.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                if let Err(e) = window.emit("close-requested", ()) {
+                    logging::error(&format!("could not ask the window to hide: {e}"));
+                    let _ = window.hide();
+                }
+            }
+        })
         .run(context)
         .expect("failed to start the application");
 }

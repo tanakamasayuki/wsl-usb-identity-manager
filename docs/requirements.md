@@ -559,6 +559,7 @@ Settings (application-wide)
   start_with_windows       start when the user signs in to Windows
   auto_attach              automatic attach on or off (§9)
   auto_attach_rules        the automatic attach rules (kind + value; R9.1)
+  told_about_tray          whether closing to the tray has been explained once (R10.15)
 
 User metadata (per target; §3.5)
   key                      the key from R7.7
@@ -857,6 +858,45 @@ simply empty; it is not an error.
 
 > Vendors that are not listed are common enough, and a user gains nothing from
 > telling "not listed" apart from "could not be read".
+
+### 10.6 Staying resident, and the window
+
+Automatic attach (§9) and identification on arrival (§4.4) **only work while
+the process is running.** Exiting with the window would leave the rules that
+were set up doing nothing.
+
+**R10.14**: Closing the window does not quit; the application stays in the
+notification area. Quitting is done from the tray icon's menu.
+
+**R10.15**: The first time the window is closed, say once that this is **not
+quitting**, and how to quit. Do not say it again.
+
+> Without it, an application the user thinks they closed goes on attaching
+> devices automatically and restarting boards through identification on arrival.
+> Saying it every time would be in the way, so it is said once and recorded
+> (`told_about_tray`).
+
+**R10.16**: The tray menu holds the following.
+
+| Item | Content |
+| --- | --- |
+| Status | how many are connected / shared / in WSL (not clickable) |
+| Auto-attach | switches it on and off (one of the routes of R9.9) |
+| Open | shows the window; a left click on the icon does the same |
+| Quit | exits the application |
+
+**R10.17**: The tray labels come from the same translations as the rest of the
+interface. The backend holds no catalogue of its own (R10.5).
+
+**R10.18**: Started through the autostart entry (§7.1), the application goes to
+the notification area **without opening a window**.
+
+> Signing in is not a request to be shown a window. For someone who keeps it
+> resident for the sake of automatic attach, a window at every sign-in is only
+> in the way.
+
+**R10.19**: Launching the application again while it is resident **shows the
+hidden window and brings it to the front** (R13.10).
 
 ---
 
@@ -1157,6 +1197,7 @@ What the application provides, and the section that defines each.
 | The user's own names and notes | §3.5, §7.1 |
 | Automatic attach (by board ID / USB serial number / VID:PID / bus id) | §9 |
 | Refusing to run a second copy | §13.3 (R13.10) |
+| Staying in the notification area (closing does not quit) | §10.6 |
 | Keeping the list in step with connections and disconnections | §8 |
 | Detecting the display language, and choosing it by hand | §10.4 |
 | Starting when the user signs in to Windows | §7.1 |

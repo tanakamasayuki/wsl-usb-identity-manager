@@ -98,6 +98,18 @@ export interface Settings {
   autoAttach: boolean;
   /** What to attach automatically. Empty attaches nothing. */
   autoAttachRules: AutoAttachRule[];
+  /** Whether closing to the tray has been explained once. */
+  toldAboutTray: boolean;
+}
+
+/** What goes in the tray menu, already translated. Mirrors `TrayView` in src-tauri/src/tray.rs. */
+export interface TrayView {
+  tooltip: string;
+  status: string;
+  autoAttachLabel: string;
+  autoAttachOn: boolean;
+  openLabel: string;
+  quitLabel: string;
 }
 
 export interface StoredSettings {

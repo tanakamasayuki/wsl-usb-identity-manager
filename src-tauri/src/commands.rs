@@ -17,6 +17,7 @@ use wuim_probe::TargetIdentity;
 
 use crate::logging;
 use crate::state;
+use crate::tray::{self, TrayView};
 use crate::view::{DeviceView, Identity, SettingsView};
 
 /// anyhow's chain, flattened for the frontend and written to the log on the way
@@ -47,6 +48,21 @@ where
             logging::error(&message);
             message
         })?
+}
+
+/// Puts the frontend's labels and counts into the tray menu.
+///
+/// The translations live in the frontend (R10.5), so the text arrives from
+/// there rather than being built here.
+#[tauri::command]
+pub fn set_tray(view: TrayView) -> Result<(), String> {
+    tray::apply(view).map_err(to_message)
+}
+
+/// Hides the window, leaving the application in the tray.
+#[tauri::command]
+pub fn hide_window(window: tauri::Window) -> Result<(), String> {
+    window.hide().map_err(|e| to_message(e.into()))
 }
 
 /// Whether usbipd is installed and answering (requirement R13.1).

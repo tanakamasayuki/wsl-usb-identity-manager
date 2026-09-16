@@ -21,16 +21,30 @@ const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 /// The value name. Stable, because changing it would strand the old entry.
 const VALUE_NAME: &str = "WSL USB Identity Manager";
 
+/// The argument that tells a copy started this way to stay in the tray.
+///
+/// Public because the application checks its own arguments for it.
+pub const HIDDEN_ARG: &str = "--hidden";
+
 /// Whether this executable is registered to start with Windows.
 ///
 /// Compares the registered command against the running executable, so an entry
 /// left behind by a copy that has since moved reads as "off" — which is what it
 /// effectively is.
+///
+/// An entry without [`HIDDEN_ARG`] counts too. Earlier versions wrote one, and
+/// reading it as "off" would leave the user with a switch that says off while
+/// the application still starts itself.
 pub fn is_enabled() -> bool {
-    let Ok(expected) = command_line() else {
+    let Ok(quoted) = quoted_exe() else {
         return false;
     };
-    matches!(read_value(), Ok(Some(found)) if found.eq_ignore_ascii_case(&expected))
+    let Ok(Some(found)) = read_value() else {
+        return false;
+    };
+    let found = found.trim();
+    found.eq_ignore_ascii_case(&quoted)
+        || found.eq_ignore_ascii_case(&format!("{quoted} {HIDDEN_ARG}"))
 }
 
 /// Registers or removes the entry.
@@ -42,9 +56,17 @@ pub fn set(enabled: bool) -> Result<()> {
     }
 }
 
-/// The command Windows will run, quoted because the path contains spaces once
-/// the application is installed under Program Files or a user profile.
+/// The command Windows will run.
+///
+/// Quoted, because the path contains spaces once the application is installed
+/// under a user profile, and with [`HIDDEN_ARG`] so that signing in does not
+/// open a window: a copy started for the sake of its automatic rules has no
+/// reason to interrupt what the user is doing.
 fn command_line() -> Result<String> {
+    Ok(format!("{} {HIDDEN_ARG}", quoted_exe()?))
+}
+
+fn quoted_exe() -> Result<String> {
     let exe: PathBuf = std::env::current_exe().context("could not find this executable")?;
     Ok(format!("\"{}\"", exe.display()))
 }

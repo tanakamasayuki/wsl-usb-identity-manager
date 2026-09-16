@@ -9,7 +9,7 @@ use anyhow::{Result, anyhow};
 use windows::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, HANDLE};
 use windows::Win32::System::Threading::CreateMutexW;
 use windows::Win32::UI::WindowsAndMessaging::{
-    FindWindowW, IsIconic, SW_RESTORE, SetForegroundWindow, ShowWindow,
+    FindWindowW, IsIconic, IsWindowVisible, SW_RESTORE, SW_SHOW, SetForegroundWindow, ShowWindow,
 };
 use windows::core::PCWSTR;
 
@@ -71,6 +71,12 @@ pub fn focus(window_title: &str) -> bool {
     };
     if window.is_invalid() {
         return false;
+    }
+    // The running copy may be sitting in the tray, where its window still
+    // exists and is still found by title but is hidden. Showing it is what
+    // makes launching the application again do something.
+    if !unsafe { IsWindowVisible(window) }.as_bool() {
+        let _ = unsafe { ShowWindow(window, SW_SHOW) };
     }
     // A minimised window accepts the foreground without coming back into view,
     // which looks exactly like nothing happening.

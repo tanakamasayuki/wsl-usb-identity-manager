@@ -12,6 +12,7 @@
     "windows": [
       {
         "title": "WSL USB Identity Manager",
+        "visible": false,
         "width": 1180,
         "height": 760,
         "minWidth": 860,

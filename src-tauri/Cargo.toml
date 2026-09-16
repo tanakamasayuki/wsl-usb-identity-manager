@@ -21,7 +21,7 @@ anyhow.workspace = true
 jiff.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 
 # Only for the message shown when there is no WebView2 runtime to draw a window
 # with; see src/preflight.rs.

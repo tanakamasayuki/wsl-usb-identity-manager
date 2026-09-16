@@ -7,12 +7,16 @@
   import SettingsPanel from "./lib/SettingsPanel.svelte";
   import {
     checkUsbipd,
+    hideWindow,
     listDevices,
     log,
+    onCloseRequested,
+    onSettingsChanged,
     openTarget,
     probeDevice,
     readSettings,
     runOperation,
+    setTray,
     writeSettings,
   } from "./lib/api";
   import { t } from "./lib/i18n";
@@ -123,6 +127,16 @@
   /** Where the settings and the log are, for the settings panel (R13.8). */
   let settingsPath = $state("");
   let logPath = $state("");
+  /**
+   * Whether closing the window has been explained once.
+   *
+   * Closing leaves the application in the tray, because automatic attach and
+   * automatic identification only run while it is alive. "I closed it and it is
+   * still running" is the thing about that which has to be said out loud —
+   * once, not every time.
+   */
+  let toldAboutTray = $state(false);
+  let closingNotice = $state(false);
   /** False when the stored file was refused, so nothing is being saved. */
   let settingsWritable = $state(true);
   /** Set once the saved settings have arrived, so they are not saved back over. */
@@ -189,6 +203,61 @@
       // installed, rather than reporting the same error over and over.
       void recheckUsbipd();
     }
+  }
+
+  /**
+   * Keeps the tray menu in step with what the window shows.
+   *
+   * The labels are sent from here because the translations are here (R10.5);
+   * the backend holds no catalogue of its own.
+   */
+  let lastTray = "";
+
+  function refreshTray() {
+    const view = {
+      tooltip: `${t("app.name")}\n${t("tray.status", {
+        connected: counts.connected,
+        shared: counts.shared,
+        attached: counts.attached,
+      })}`,
+      status: t("tray.status", {
+        connected: counts.connected,
+        shared: counts.shared,
+        attached: counts.attached,
+      }),
+      autoAttachLabel: t("toolbar.auto_attach"),
+      autoAttachOn: autoAttach,
+      openLabel: t("tray.open"),
+      quitLabel: t("tray.quit"),
+    };
+    const next = JSON.stringify(view);
+    if (next === lastTray) return;
+    lastTray = next;
+    void setTray(view).catch((e) => log("error", `updating the tray: ${e}`));
+  }
+
+  // Counts change with every poll, and the switch can be flipped from either
+  // side, so the menu follows both.
+  $effect(() => {
+    void counts;
+    void autoAttach;
+    refreshTray();
+  });
+
+  /** Closes to the tray, explaining what that means the first time. */
+  function requestClose() {
+    if (toldAboutTray) {
+      void hideWindow().catch((e) => fail("hiding the window", e));
+      return;
+    }
+    closingNotice = true;
+  }
+
+  function acceptClosingNotice() {
+    closingNotice = false;
+    toldAboutTray = true;
+    void saveSettings();
+    void hideWindow().catch((e) => fail("hiding the window", e));
   }
 
   /** When the last check ran, so a failing usbipd is not asked twice a second. */
@@ -417,6 +486,7 @@
         startWithWindows = stored.settings.startWithWindows;
         autoAttach = stored.settings.autoAttach;
         autoAttachRules = stored.settings.autoAttachRules;
+        toldAboutTray = stored.settings.toldAboutTray;
         settingsWritable = stored.writable;
         settingsPath = stored.path;
         logPath = stored.logPath;
@@ -424,6 +494,22 @@
         log("info", `settings from ${stored.path}`);
       })
       .catch((e) => fail("reading the settings", e));
+
+    // The tray closes the window and flips automatic attach, so both come back
+    // as events rather than as something this side started.
+    const unlisten: Promise<() => void>[] = [
+      onCloseRequested(requestClose),
+      onSettingsChanged(() =>
+        readSettings()
+          .then((stored) => {
+            autoAttach = stored.settings.autoAttach;
+            autoAttachRules = stored.settings.autoAttachRules;
+            autoAttachTried.clear();
+            void drainAutoAttach();
+          })
+          .catch((e) => fail("re-reading the settings", e)),
+      ),
+    ];
 
     void recheckUsbipd();
     refresh();
@@ -435,7 +521,10 @@
     const timer = setInterval(() => {
       if (!busy && !autoAttaching) refresh();
     }, 2000);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      for (const pending of unlisten) void pending.then((stop) => stop());
+    };
   });
 
   /** The probe that could run against a device, or why none can. */
@@ -457,6 +546,7 @@
       startWithWindows,
       autoAttach,
       autoAttachRules,
+      toldAboutTray,
     }).catch((e) => {
       fail("saving the settings", e);
       // The registry refused, so the switch did not take. Put it back rather
@@ -971,6 +1061,19 @@
     }}
     onclose={() => (settingsOpen = false)}
   />
+{/if}
+
+{#if closingNotice}
+  <!-- Said once, and only because an application that keeps running after its
+       window is gone has to say so. -->
+  <div class="backdrop" role="presentation"></div>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="tray-title">
+    <h2 id="tray-title">{t("tray.notice.title")}</h2>
+    <p class="effect">{t("tray.notice.body")}</p>
+    <div class="dialog-actions">
+      <button class="primary" onclick={acceptClosingNotice}>{t("tray.notice.ok")}</button>
+    </div>
+  </div>
 {/if}
 
 {#if autoAttachOpen}
