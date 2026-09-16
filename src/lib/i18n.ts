@@ -31,7 +31,7 @@ const en = {
   "col.connection": "Connection",
   "col.device": "Device",
   "col.vidpid": "VID:PID",
-  "col.transport": "USB serial",
+  "col.transport": "USB serial number",
   "col.target": "Board",
 
   "state.shared": "Shared",
@@ -40,7 +40,7 @@ const en = {
 
   "transport.none": "none",
   "transport.hint":
-    "Serial number of the adapter or probe itself. It stays the same when the board behind it is swapped.",
+    "The serial number in the USB descriptors — not the serial line. It belongs to the adapter or probe itself, and stays the same when the board behind it is swapped.",
   "transport.none.hint":
     "This adapter reports no serial number, so its own identity rests on which port it is in.",
 
@@ -69,7 +69,7 @@ const en = {
   "auto_attach.none": "None",
 
   "auto_attach.kind.identity": "Board ID",
-  "auto_attach.kind.serial": "USB serial",
+  "auto_attach.kind.serial": "USB serial number",
   "auto_attach.kind.vid_pid": "VID:PID",
   "auto_attach.kind.bus_id": "BUSID",
   "auto_attach.kind.identity.hint":
@@ -138,7 +138,7 @@ const en = {
   "detail.vendor": "Vendor",
   "detail.usb_product": "USB product",
   "detail.from_usb_ids": "From the USB ID Repository (usb.ids), which does not list every vendor.",
-  "detail.transport": "USB serial",
+  "detail.transport": "USB serial number",
   "detail.target": "Board",
   "detail.target.unknown": "Not identified yet. Identifying reads the board's own ID.",
   "detail.target.transport_only": "Identified down to the USB side only.",
@@ -215,7 +215,7 @@ const ja: Record<Key, string> = {
   "col.connection": "接続",
   "col.device": "デバイス",
   "col.vidpid": "VID:PID",
-  "col.transport": "USB シリアル",
+  "col.transport": "USB シリアル番号",
   "col.target": "ボード",
 
   "state.shared": "共有可能",
@@ -224,7 +224,7 @@ const ja: Record<Key, string> = {
 
   "transport.none": "なし",
   "transport.hint":
-    "アダプタ／プローブ自身のシリアル番号です。その先のボードを載せ替えても変わりません。",
+    "USB 記述子に入っているシリアル番号です（シリアル回線のことではありません）。アダプタ／プローブ自身のもので、その先のボードを載せ替えても変わりません。",
   "transport.none.hint":
     "このアダプタはシリアル番号を申告しないため、アダプタ自身もポート位置でしか特定できません。",
 
@@ -253,7 +253,7 @@ const ja: Record<Key, string> = {
   "auto_attach.none": "なし",
 
   "auto_attach.kind.identity": "ボード ID",
-  "auto_attach.kind.serial": "USB シリアル",
+  "auto_attach.kind.serial": "USB シリアル番号",
   "auto_attach.kind.vid_pid": "VID:PID",
   "auto_attach.kind.bus_id": "BUSID",
   "auto_attach.kind.identity.hint":
@@ -322,7 +322,7 @@ const ja: Record<Key, string> = {
   "detail.vendor": "ベンダー",
   "detail.usb_product": "USB 製品名",
   "detail.from_usb_ids": "USB ID Repository（usb.ids）の記載です。全ベンダーが登録しているわけではありません。",
-  "detail.transport": "USB シリアル",
+  "detail.transport": "USB シリアル番号",
   "detail.target": "ボード",
   "detail.target.unknown": "未識別。識別するとボード自身の ID が判ります。",
   "detail.target.transport_only": "USB 側までの識別に留まります。",

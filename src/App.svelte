@@ -124,7 +124,6 @@
   let pending: { instanceId: string; arrivedAt: number }[] = [];
   let draining = false;
 
-  const selected = $derived(devices.find((d) => d.instanceId === selectedId) ?? null);
   const counts = $derived(
     Object.fromEntries(FILTERS.map((f) => [f.id, devices.filter(f.match).length])) as Record<
       Filter,
@@ -132,6 +131,20 @@
     >,
   );
   const shown = $derived(devices.filter(FILTERS.find((f) => f.id === filter)!.match));
+
+  /**
+   * The selected device, but only while it is one of the rows on screen.
+   *
+   * Found in `shown` rather than in `devices`: the detail pane describes the
+   * selected row, so with no row selected there is nothing for it to describe.
+   * Searching the whole list instead left the pane showing a device that the
+   * current tab does not contain — no row highlighted, and buttons acting on
+   * something the user could not see.
+   *
+   * `selectedId` itself is kept, so going back to the tab the device is in
+   * brings the selection back with it.
+   */
+  const selected = $derived(shown.find((d) => d.instanceId === selectedId) ?? null);
 
   /**
    * Records a failure and shows it.
@@ -1148,7 +1161,9 @@
 
   dl {
     display: grid;
-    grid-template-columns: 76px minmax(0, 1fr) 82px minmax(0, 1fr);
+    /* Wide enough for the longest label ("USB シリアル番号") on one line: a
+       label that wraps changes the height of every row beside it. */
+    grid-template-columns: 100px minmax(0, 1fr) 96px minmax(0, 1fr);
     gap: 3px 12px;
     margin: 0;
     font-size: 12px;
@@ -1161,6 +1176,7 @@
 
   dt {
     color: var(--fg-muted);
+    white-space: nowrap;
   }
 
   dd {
