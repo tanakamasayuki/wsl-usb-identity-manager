@@ -276,6 +276,7 @@
       error = null;
     } catch (e) {
       fail(`auto attach on ${device.instanceId}`, e);
+      await refresh();
     } finally {
       const next = new Set(attachingIds);
       next.delete(device.instanceId);
@@ -498,6 +499,10 @@
       error = null;
     } catch (e) {
       fail(`${operation} on ${device.instanceId}`, e);
+      // A failure says nothing about how far usbipd got. The list is only
+      // handed back on success, so without this the screen keeps showing what
+      // was true before the attempt — next to an error saying it was not done.
+      await refresh();
     } finally {
       busy = null;
     }

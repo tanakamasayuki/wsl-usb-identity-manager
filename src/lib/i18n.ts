@@ -33,6 +33,7 @@ const en = {
   "col.vidpid": "VID:PID",
   "col.transport": "USB serial number",
   "col.target": "Board",
+  "col.auto": "Auto",
 
   "state.shared": "Shared",
   "state.attached": "In WSL",
@@ -84,6 +85,8 @@ const en = {
   "auto_attach.example.vid_pid": "1a86:7523",
   "auto_attach.example.bus_id": "12-3",
   "auto_attach.marked": "Attached automatically, matched on {kind}",
+  "auto_attach.marked.off":
+    "Matches the {kind} rule, but automatic attach is switched off.",
   "auto_attach.removed_shared":
     "Removed the {kind} rule, which also covered {count} other device(s).",
   "state.attaching": "attaching…",
@@ -217,6 +220,7 @@ const ja: Record<Key, string> = {
   "col.vidpid": "VID:PID",
   "col.transport": "USB シリアル番号",
   "col.target": "ボード",
+  "col.auto": "自動",
 
   "state.shared": "共有可能",
   "state.attached": "WSL 接続中",
@@ -268,6 +272,7 @@ const ja: Record<Key, string> = {
   "auto_attach.example.vid_pid": "1a86:7523",
   "auto_attach.example.bus_id": "12-3",
   "auto_attach.marked": "{kind} の条件に一致し、自動で接続されます",
+  "auto_attach.marked.off": "{kind} の条件に一致していますが、自動 Attach は OFF です",
   "auto_attach.removed_shared":
     "{kind} の条件を削除しました。他に {count} 台が一致していました。",
   "state.attaching": "接続中…",

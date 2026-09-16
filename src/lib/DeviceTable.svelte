@@ -71,6 +71,7 @@
         <th class="vidpid">{t("col.vidpid")}</th>
         <th class="transport">{t("col.transport")}</th>
         <th class="target">{t("col.target")}</th>
+        <th class="auto">{t("col.auto")}</th>
       </tr>
     </thead>
     <tbody>
@@ -85,24 +86,12 @@
           <td class="state">
             {#if attaching.has(device.instanceId)}
               <span class="id pending">{t("state.attaching")}</span>
-            {:else}
-              <!-- Which rows a rule will take away, before it takes them. That
-                   is the part of automatic attaching worth seeing at a glance. -->
-              {#if autoAttachOn && device.autoAttach.matched}
-                <span
-                  class="auto"
-                  title={t("auto_attach.marked", {
-                    kind: t(`auto_attach.kind.${device.autoAttach.matched}`),
-                  })}>&rarr;</span
-                >
-              {/if}
+            {:else if device.state !== "not shared"}
               <!-- "not shared" is the state almost every device is in, so it is
                    left blank: a column that repeats the same word down every row
                    carries no information. -->
-              {#if device.state !== "not shared"}
-                <span class="dot {device.state}"></span>
-                {t(`state.${device.state}`)}
-              {/if}
+              <span class="dot {device.state}"></span>
+              {t(`state.${device.state}`)}
             {/if}
           </td>
           <td class="connection">{connection(device)}</td>
@@ -140,6 +129,21 @@
               </button>
             {:else}
               <span class="id" title={t("target.unavailable.hint")}>—</span>
+            {/if}
+          </td>
+          <!-- Which rows a rule will take away, before it takes them. Its own
+               column rather than a mark beside the state, which it outgrew as
+               soon as the state read "WSL 接続中". -->
+          <td class="auto">
+            {#if device.autoAttach.matched}
+              {@const kind = t(`auto_attach.kind.${device.autoAttach.matched}`)}
+              <span
+                class="tag"
+                class:idle={!autoAttachOn}
+                title={autoAttachOn
+                  ? t("auto_attach.marked", { kind })
+                  : t("auto_attach.marked.off", { kind })}>&check;</span
+              >
             {/if}
           </td>
         </tr>
@@ -205,7 +209,13 @@
     width: 176px;
   }
   .target {
-    width: 248px;
+    /* Room for the longest identifier a probe produces, e.g.
+       `ch32x035c8t6-1ff9abcd880ebc48`. */
+    width: 224px;
+  }
+  .auto {
+    width: 52px;
+    text-align: center;
   }
 
   .primary {
@@ -250,10 +260,15 @@
     border-bottom-color: var(--accent);
   }
 
-  .auto {
+  .tag {
     color: var(--accent);
     font-weight: 600;
-    margin-right: 5px;
+  }
+
+  /* The rule matches, but the switch is off, so nothing will come of it. */
+  .tag.idle {
+    color: var(--fg-faint);
+    font-weight: 400;
   }
 
   .dot {
