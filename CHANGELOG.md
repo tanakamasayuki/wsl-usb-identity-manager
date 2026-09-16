@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.1 - 2026-09-16
+
 - (EN) Names the publisher in the installer. Without it Tauri falls back to the second element of the bundle identifier, so the installed application reported its publisher as `github` in the uninstall list and to anything reading the installer's metadata.
 - (JA) インストーラに発行元を明記した。未指定だと Tauri は identifier の 2 番目の要素を使うため、インストール済みアプリの発行元が `github` と表示されていた。
 
