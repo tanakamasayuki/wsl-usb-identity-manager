@@ -9,12 +9,26 @@
     empty: string;
     /** Devices with a probe in flight. */
     probing: Set<string>;
+    /** Devices being attached by a rule rather than by the user. */
+    attaching: Set<string>;
+    /** Whether the rules are being acted on at all, so the marker means something. */
+    autoAttachOn: boolean;
     onselect: (instanceId: string) => void;
     onmenu: (instanceId: string, x: number, y: number) => void;
     onidentify: (instanceId: string) => void;
   }
 
-  let { devices, selected, empty, probing, onselect, onmenu, onidentify }: Props = $props();
+  let {
+    devices,
+    selected,
+    empty,
+    probing,
+    attaching,
+    autoAttachOn,
+    onselect,
+    onmenu,
+    onidentify,
+  }: Props = $props();
 
   /**
    * Transport and Target are separate columns because they are separate things
@@ -69,12 +83,26 @@
           oncontextmenu={(e) => openMenu(e, device.instanceId)}
         >
           <td class="state">
-            <!-- "not shared" is the state almost every device is in, so it is
-                 left blank: a column that repeats the same word down every row
-                 carries no information. -->
-            {#if device.state !== "not shared"}
-              <span class="dot {device.state}"></span>
-              {t(`state.${device.state}`)}
+            {#if attaching.has(device.instanceId)}
+              <span class="id pending">{t("state.attaching")}</span>
+            {:else}
+              <!-- Which rows a rule will take away, before it takes them. That
+                   is the part of automatic attaching worth seeing at a glance. -->
+              {#if autoAttachOn && device.autoAttach.matched}
+                <span
+                  class="auto"
+                  title={t("auto_attach.marked", {
+                    kind: t(`auto_attach.kind.${device.autoAttach.matched}`),
+                  })}>&rarr;</span
+                >
+              {/if}
+              <!-- "not shared" is the state almost every device is in, so it is
+                   left blank: a column that repeats the same word down every row
+                   carries no information. -->
+              {#if device.state !== "not shared"}
+                <span class="dot {device.state}"></span>
+                {t(`state.${device.state}`)}
+              {/if}
             {/if}
           </td>
           <td class="connection">{connection(device)}</td>
@@ -220,6 +248,12 @@
   .identify:hover {
     color: var(--accent);
     border-bottom-color: var(--accent);
+  }
+
+  .auto {
+    color: var(--accent);
+    font-weight: 600;
+    margin-right: 5px;
   }
 
   .dot {

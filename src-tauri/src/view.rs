@@ -6,6 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 use wuim_core::UsbIds;
+use wuim_core::autoattach::{self, Candidate, Rule, RuleKind};
 use wuim_core::snapshot::DeviceRow;
 use wuim_core::store::Settings;
 use wuim_probe::TargetIdentity;
@@ -71,6 +72,9 @@ pub struct DeviceView {
     pub probes: Vec<ProbeOption>,
     /// Which usbipd operations make sense for the device as it stands.
     pub actions: Actions,
+    /// What an automatic-attach rule could name this device by, and what names
+    /// it now (§9).
+    pub auto_attach: AutoAttach,
     /// What a probe found this session, if one has run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub identity: Option<Identity>,
@@ -91,6 +95,8 @@ pub struct SettingsView {
     pub auto_exclude: Vec<String>,
     pub confirm_before_identify: bool,
     pub start_with_windows: bool,
+    pub auto_attach: bool,
+    pub auto_attach_rules: Vec<Rule>,
 }
 
 impl From<&Settings> for SettingsView {
@@ -100,6 +106,8 @@ impl From<&Settings> for SettingsView {
             auto_exclude: settings.auto_exclude.clone(),
             confirm_before_identify: settings.confirm_before_identify,
             start_with_windows: settings.start_with_windows,
+            auto_attach: settings.auto_attach,
+            auto_attach_rules: settings.auto_attach_rules.clone(),
         }
     }
 }
@@ -111,8 +119,30 @@ impl From<SettingsView> for Settings {
             auto_exclude: view.auto_exclude,
             confirm_before_identify: view.confirm_before_identify,
             start_with_windows: view.start_with_windows,
+            auto_attach: view.auto_attach,
+            auto_attach_rules: view.auto_attach_rules,
         }
+        // Whatever the frontend sent, the stored list holds no blanks and no
+        // repeats.
+        .sanitised()
     }
+}
+
+/// What an automatic-attach rule could name a device by.
+///
+/// Computed here rather than in the UI so the rule semantics live in one place
+/// and can be tested. Nothing in this touches a device: every candidate comes
+/// from the enumeration that has already happened, which is what keeps
+/// requirement R9.4 — no probing to decide an attach — true by construction.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoAttach {
+    /// Most specific first. Only what the device actually offers: no serial
+    /// number means no serial candidate, and no probe has run means no identity
+    /// candidate.
+    pub candidates: Vec<Candidate>,
+    /// The kind of rule matching it right now, if any.
+    pub matched: Option<RuleKind>,
 }
 
 /// What a probe found. Present only while the device it came from stays
@@ -168,7 +198,12 @@ pub struct ProbeOption {
 }
 
 impl DeviceView {
-    pub fn from_row(row: &DeviceRow, ids: &UsbIds, identity: Option<Identity>) -> Self {
+    pub fn from_row(
+        row: &DeviceRow,
+        ids: &UsbIds,
+        identity: Option<Identity>,
+        rules: &[Rule],
+    ) -> Self {
         let usbipd = row.usbipd.as_ref();
         let (vendor, usb_product) = match row.instance_id.vid_pid() {
             Some((vid, pid)) => (
@@ -206,8 +241,33 @@ impl DeviceView {
             problem_code: row.windows.as_ref().and_then(|w| w.problem_code),
             probes: probe_options(row),
             actions: actions(row),
+            auto_attach: auto_attach(row, identity.as_ref(), rules),
             identity,
         }
+    }
+}
+
+fn auto_attach(row: &DeviceRow, identity: Option<&Identity>, rules: &[Rule]) -> AutoAttach {
+    let mut candidates = Vec::new();
+    // In RuleKind::ALL order, most specific first, which is the order
+    // `matching` reports a winner in.
+    if let Some(identity) = identity {
+        candidates.push(Candidate::new(RuleKind::Identity, &identity.identity_key));
+    }
+    if let Some(serial) = row.instance_id.unit.serial() {
+        candidates.push(Candidate::new(RuleKind::Serial, serial));
+    }
+    if let Some(vid_pid) = row.instance_id.vid_pid_string() {
+        candidates.push(Candidate::new(RuleKind::VidPid, vid_pid));
+    }
+    if let Some(bus_id) = row.bus_id() {
+        candidates.push(Candidate::new(RuleKind::BusId, bus_id));
+    }
+
+    let matched = autoattach::matching(rules, &candidates);
+    AutoAttach {
+        candidates,
+        matched,
     }
 }
 
@@ -282,12 +342,35 @@ mod tests {
         assert!(object.contains_key("autoExclude"), "{keys:?}");
         assert!(object.contains_key("confirmBeforeIdentify"), "{keys:?}");
         assert!(object.contains_key("startWithWindows"), "{keys:?}");
+        assert!(object.contains_key("autoAttach"), "{keys:?}");
+        assert!(object.contains_key("autoAttachRules"), "{keys:?}");
+    }
+
+    /// The rule kinds cross the boundary as strings the frontend switches on
+    /// and builds translation keys from, so they are pinned like the field
+    /// names above.
+    #[test]
+    fn rule_kinds_cross_the_boundary_as_snake_case() {
+        let spellings: Vec<String> = RuleKind::ALL
+            .iter()
+            .map(|kind| {
+                serde_json::to_value(kind)
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            })
+            .collect();
+        assert_eq!(spellings, ["identity", "serial", "vid_pid", "bus_id"]);
     }
 
     #[test]
     fn settings_come_back_from_what_the_frontend_sends() {
         let sent = r#"{"autoIdentify": false, "autoExclude": ["1a86:7523"],
-                       "confirmBeforeIdentify": false, "startWithWindows": true}"#;
+                       "confirmBeforeIdentify": false, "startWithWindows": true,
+                       "autoAttach": true,
+                       "autoAttachRules": [{"kind": "vid_pid", "value": "1a86:7523"},
+                                           {"kind": "vid_pid", "value": "1A86:7523"}]}"#;
         let view: SettingsView = serde_json::from_str(sent).unwrap();
         let settings: Settings = view.into();
 
@@ -295,5 +378,8 @@ mod tests {
         assert_eq!(settings.auto_exclude, vec!["1a86:7523".to_string()]);
         assert!(!settings.confirm_before_identify);
         assert!(settings.start_with_windows);
+        assert!(settings.auto_attach);
+        // The same rule twice is one rule by the time it is stored.
+        assert_eq!(settings.auto_attach_rules.len(), 1);
     }
 }

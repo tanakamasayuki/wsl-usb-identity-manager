@@ -19,6 +19,8 @@ use anyhow::{Context, Result};
 use jiff::Zoned;
 use serde::{Deserialize, Serialize};
 
+use crate::autoattach::{self, Rule};
+
 /// Bumped only alongside a migration. See [`load`].
 pub const SCHEMA_VERSION: u32 = 1;
 
@@ -56,6 +58,25 @@ pub struct Settings {
     /// records what the user asked for and is applied to the registry when it
     /// changes. See [`crate::autostart`].
     pub start_with_windows: bool,
+    /// Attach matching devices to WSL without being asked (§9).
+    ///
+    /// Off by default. Attaching takes a device away from Windows, so it starts
+    /// only when the user says so — and the switch sits on the main window
+    /// rather than in here, because it is the one setting they will want to
+    /// flip in the middle of working.
+    pub auto_attach: bool,
+    /// What to attach automatically. An empty list attaches nothing, whatever
+    /// [`Self::auto_attach`] says.
+    pub auto_attach_rules: Vec<Rule>,
+}
+
+impl Settings {
+    /// Cleans the rule list. Called on the way in from the frontend and on the
+    /// way out to the file, so neither can hold a blank or a repeat.
+    pub fn sanitised(mut self) -> Self {
+        self.auto_attach_rules = autoattach::sanitise(self.auto_attach_rules);
+        self
+    }
 }
 
 impl Default for Settings {
@@ -66,6 +87,10 @@ impl Default for Settings {
             auto_exclude: Vec::new(),
             confirm_before_identify: true,
             start_with_windows: false,
+            // Opt-in: handing a device to WSL takes it away from Windows, which
+            // is not something to start doing on a fresh install.
+            auto_attach: false,
+            auto_attach_rules: Vec::new(),
         }
     }
 }

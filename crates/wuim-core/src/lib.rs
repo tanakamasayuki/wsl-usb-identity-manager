@@ -12,15 +12,18 @@
 //! target core — so it may only run on the two triggers in requirement R4.5.
 //! Keeping it out of this crate means no enumeration path can reach it by accident.
 
+pub mod autoattach;
 pub mod autostart;
 pub mod elevate;
 pub mod instance_id;
+pub mod single_instance;
 pub mod snapshot;
 pub mod store;
 pub mod usb_ids;
 pub mod usbipd;
 pub mod windevice;
 
+pub use autoattach::{Candidate, Rule, RuleKind};
 pub use instance_id::{InstanceId, UnitId};
 pub use snapshot::{DeviceRow, IdentityBasis, Snapshot};
 pub use store::Settings;

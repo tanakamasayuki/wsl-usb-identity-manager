@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AutoAttachPanel from "./lib/AutoAttachPanel.svelte";
   import BusyOverlay from "./lib/BusyOverlay.svelte";
   import ContextMenu from "./lib/ContextMenu.svelte";
   import DeviceTable from "./lib/DeviceTable.svelte";
@@ -13,7 +14,13 @@
     writeSettings,
   } from "./lib/api";
   import { t } from "./lib/i18n";
-  import type { DeviceView, Operation, ProbeOption } from "./lib/types";
+  import type {
+    AutoAttachRule,
+    Candidate,
+    DeviceView,
+    Operation,
+    ProbeOption,
+  } from "./lib/types";
 
   /**
    * One list with tabs, rather than a table per state.
@@ -78,6 +85,30 @@
   /** Ask before probing, stating what it does to the board (R4.7). */
   let confirmBeforeIdentify = $state(true);
   let startWithWindows = $state(false);
+
+  /**
+   * Automatic attach (§9).
+   *
+   * Off by default and switched from the toolbar rather than from a dialog:
+   * handing devices to WSL by itself is the kind of thing to turn off in the
+   * middle of working, when something needs to stay on the Windows side.
+   */
+  let autoAttach = $state(false);
+  let autoAttachRules = $state<AutoAttachRule[]>([]);
+  let autoAttachOpen = $state(false);
+  /** Devices being attached by a rule rather than by the user. */
+  let attachingIds = $state(new Set<string>());
+  /**
+   * Devices a rule has already acted on, so a failure does not retry every two
+   * seconds — and a manual detach is not immediately undone by the same rule.
+   *
+   * Cleared for a device when it stops being present, i.e. when it is actually
+   * unplugged. Attaching and detaching do not clear it: `present` stays true
+   * across both, which is exactly the distinction wanted here.
+   */
+  let autoAttachTried = new Set<string>();
+  let autoAttaching = false;
+
   /** False when the stored file was refused, so nothing is being saved. */
   let settingsWritable = $state(true);
   /** Set once the saved settings have arrived, so they are not saved back over. */
@@ -143,6 +174,13 @@
     seen = new Set(reachable.map((d) => d.instanceId));
     seeded = true;
 
+    // Unplugged devices are forgiven whatever happened last time, so plugging
+    // one back in is a fresh start for the rules.
+    const present = new Set(next.filter((d) => d.present).map((d) => d.instanceId));
+    for (const instanceId of [...autoAttachTried]) {
+      if (!present.has(instanceId)) autoAttachTried.delete(instanceId);
+    }
+
     if (autoIdentify) {
       const now = Date.now();
       for (const device of arrivals) {
@@ -157,6 +195,79 @@
     // Always drain, not only when something arrived: an entry queued a moment
     // ago may only now have become probeable.
     void drain();
+    void drainAutoAttach();
+  }
+
+  /**
+   * Devices a rule names that could be attached right now.
+   *
+   * Deliberately waits for identification to finish. A device queued for a
+   * probe is left alone until the probe has run, because attaching it first
+   * would take it away from Windows before it could be asked what it is — and
+   * would also decide the question an identity rule is waiting on.
+   */
+  function autoAttachReady(): DeviceView[] {
+    if (!autoAttach) return [];
+    return devices.filter(
+      (device) =>
+        device.autoAttach.matched !== null &&
+        device.actions.attach &&
+        !autoAttachTried.has(device.instanceId) &&
+        !probingIds.has(device.instanceId) &&
+        !pending.some((p) => p.instanceId === device.instanceId),
+    );
+  }
+
+  /**
+   * Attaches what the rules name, one at a time.
+   *
+   * Sequential for the same reason the probe queue is: the list is re-read
+   * between operations, and usbipd is doing one thing at a time regardless.
+   */
+  async function drainAutoAttach() {
+    if (autoAttaching) return;
+    autoAttaching = true;
+    try {
+      for (;;) {
+        // A user operation owns usbipd while it runs, including the UAC prompt
+        // in front of it.
+        if (busy) break;
+        const [device] = autoAttachReady();
+        if (!device) break;
+
+        // Marked before the attempt, not after: a failure must not come back
+        // round on the next poll and fail again.
+        autoAttachTried.add(device.instanceId);
+        log(
+          "info",
+          `auto attach ${device.instanceId} (matched on ${device.autoAttach.matched})`,
+        );
+        await attachAutomatically(device);
+      }
+    } finally {
+      autoAttaching = false;
+    }
+  }
+
+  /**
+   * Runs one attach the user did not ask for.
+   *
+   * No modal overlay, for the same reason an automatic probe has none: taking
+   * the window away for something they did not start is worse than the small
+   * chance of a click landing during it. The row says what is happening.
+   */
+  async function attachAutomatically(device: DeviceView) {
+    attachingIds = new Set(attachingIds).add(device.instanceId);
+    try {
+      devices = await runOperation(device.instanceId, "attach");
+      error = null;
+    } catch (e) {
+      fail(`auto attach on ${device.instanceId}`, e);
+    } finally {
+      const next = new Set(attachingIds);
+      next.delete(device.instanceId);
+      attachingIds = next;
+    }
   }
 
   /** The exclusion list, normalised to lowercase `vvvv:pppp`. */
@@ -246,6 +357,8 @@
         autoExcludeList = stored.settings.autoExclude.join(", ");
         confirmBeforeIdentify = stored.settings.confirmBeforeIdentify;
         startWithWindows = stored.settings.startWithWindows;
+        autoAttach = stored.settings.autoAttach;
+        autoAttachRules = stored.settings.autoAttachRules;
         settingsWritable = stored.writable;
         settingsLoaded = true;
         log("info", `settings from ${stored.path}`);
@@ -259,7 +372,7 @@
     // Suspended while an operation runs: usbipd is busy with that, and a reply
     // that arrives mid-attach describes a state that is already gone.
     const timer = setInterval(() => {
-      if (!busy) refresh();
+      if (!busy && !autoAttaching) refresh();
     }, 2000);
     return () => clearInterval(timer);
   });
@@ -273,11 +386,16 @@
   }
 
   function saveSettings() {
+    // Nothing is saved until the stored values have arrived, so an early change
+    // cannot write defaults over the file.
+    if (!settingsLoaded) return Promise.resolve();
     return writeSettings({
       autoIdentify,
       autoExclude: [...excluded()],
       confirmBeforeIdentify,
       startWithWindows,
+      autoAttach,
+      autoAttachRules,
     }).catch((e) => {
       fail("saving the settings", e);
       // The registry refused, so the switch did not take. Put it back rather
@@ -386,11 +504,85 @@
   async function copy(text: string) {
     try {
       await navigator.clipboard.writeText(text);
-      toast = t("menu.copied");
-      setTimeout(() => (toast = null), 1400);
+      showToast(t("menu.copied"));
     } catch (e) {
       fail("copying to the clipboard", e);
     }
+  }
+
+  let toastTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** `seconds` is longer for anything with a number in it worth reading. */
+  function showToast(message: string, seconds = 1.4) {
+    toast = message;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (toast = null), seconds * 1000);
+  }
+
+  const sameValue = (a: string, b: string) =>
+    a.trim().toLowerCase() === b.trim().toLowerCase();
+
+  const covers = (rule: AutoAttachRule, candidate: Candidate) =>
+    rule.kind === candidate.kind && sameValue(rule.value, candidate.value);
+
+  /** How many listed devices a rule names right now. */
+  function countMatching(rule: AutoAttachRule): number {
+    return devices.filter((device) =>
+      device.autoAttach.candidates.some((candidate) => covers(rule, candidate)),
+    ).length;
+  }
+
+  function applyRules(next: AutoAttachRule[]) {
+    autoAttachRules = next;
+    // A changed rule set deserves a fresh look at everything: a device passed
+    // over because nothing named it may be named now.
+    autoAttachTried.clear();
+    void saveSettings();
+    void drainAutoAttach();
+  }
+
+  function toggleAutoAttach() {
+    autoAttach = !autoAttach;
+    autoAttachTried.clear();
+    void saveSettings();
+    void drainAutoAttach();
+  }
+
+  /**
+   * Sets which of a device's own values a rule names it by, or none.
+   *
+   * The choices are exclusive — one device, one rule — so picking one drops the
+   * others. That is worth saying out loud in one case: a VID:PID rule is not
+   * this device's alone, and dropping it also stops every other device of the
+   * same kind being attached. The notice below is there so that does not happen
+   * silently.
+   */
+  function setAutoAttachRule(device: DeviceView, candidate: Candidate | null) {
+    const own = device.autoAttach.candidates;
+    const ours = (rule: AutoAttachRule) => own.some((c) => covers(rule, c));
+
+    // Choosing what is already chosen changes nothing.
+    if (candidate && autoAttachRules.some((rule) => covers(rule, candidate))) return;
+    if (!candidate && !autoAttachRules.some(ours)) return;
+
+    const dropped = autoAttachRules.filter(ours);
+    const kept = autoAttachRules.filter((rule) => !ours(rule));
+    const next = candidate
+      ? [...kept, { kind: candidate.kind, value: candidate.value }]
+      : kept;
+
+    const wider = dropped.find((rule) => countMatching(rule) > 1);
+    if (wider) {
+      showToast(
+        t("auto_attach.removed_shared", {
+          kind: t(`auto_attach.kind.${wider.kind}`),
+          count: countMatching(wider) - 1,
+        }),
+        5,
+      );
+    }
+
+    applyRules(next);
   }
 
   const menuItems = $derived.by(() => {
@@ -440,6 +632,24 @@
         <span class="armed" title={t("toolbar.auto_on.hint")}>{t("toolbar.auto_on")}</span>
       {/if}
       <button
+        class="toggle"
+        class:on={autoAttach}
+        title={t("toolbar.auto_attach.hint")}
+        onclick={toggleAutoAttach}
+      >
+        {t("toolbar.auto_attach")}
+        <span class="badge">{autoAttach ? t("toolbar.on") : t("toolbar.off")}</span>
+      </button>
+      <button
+        title={t("toolbar.auto_attach.rules.hint")}
+        onclick={() => (autoAttachOpen = true)}
+      >
+        {t("toolbar.auto_attach.rules")}
+        {#if autoAttachRules.length > 0}
+          <span class="count">{autoAttachRules.length}</span>
+        {/if}
+      </button>
+      <button
         disabled={unidentified.length === 0 || busy !== null}
         title={unidentified.length === 0
           ? t("toolbar.identify_all.none")
@@ -463,6 +673,8 @@
       devices={shown}
       selected={selectedId}
       probing={probingIds}
+      attaching={attachingIds}
+      autoAttachOn={autoAttach}
       empty={t(`empty.${filter}`)}
       onselect={(id) => (selectedId = id)}
       onidentify={(id) => {
@@ -565,17 +777,59 @@
         </dl>
       </div>
 
-      <div class="detail-actions">
-        {#each operations(selected) as op (op.id)}
-          <button disabled={busy !== null} onclick={() => operate(selected, op.id)}>
-            {op.label}
-          </button>
-        {/each}
-        {#if !("reason" in outcome)}
-          <button class="primary" onclick={() => startProbe(selected)}>
-            {t("menu.identify")}
-          </button>
+      <div class="detail-side">
+        {#if selected.autoAttach.candidates.length > 0}
+          {@const chosen = selected.autoAttach.candidates.find(
+            (c) => c.kind === selected.autoAttach.matched,
+          )}
+          <!-- Exclusive by design: one device is attached because of one thing
+               about it, and which thing that is, is the whole question. -->
+          <div class="auto-attach" class:off={!autoAttach}>
+            <span class="aa-label">{t("detail.auto_attach")}</span>
+            <label class="aa-option">
+              <input
+                type="radio"
+                name="auto-attach"
+                checked={selected.autoAttach.matched === null}
+                onchange={() => setAutoAttachRule(selected, null)}
+              />
+              <span>{t("auto_attach.none")}</span>
+            </label>
+            {#each selected.autoAttach.candidates as candidate (candidate.kind)}
+              <label class="aa-option" title={t(`auto_attach.kind.${candidate.kind}.hint`)}>
+                <input
+                  type="radio"
+                  name="auto-attach"
+                  checked={selected.autoAttach.matched === candidate.kind}
+                  onchange={() => setAutoAttachRule(selected, candidate)}
+                />
+                <span>{t(`auto_attach.kind.${candidate.kind}`)}</span>
+              </label>
+            {/each}
+          </div>
+          <p class="aa-value">
+            {#if !autoAttach}
+              {t("detail.auto_attach.off")}
+            {:else if chosen}
+              <code>{chosen.value}</code>
+            {:else}
+              {t("detail.auto_attach.none")}
+            {/if}
+          </p>
         {/if}
+
+        <div class="detail-actions">
+          {#each operations(selected) as op (op.id)}
+            <button disabled={busy !== null} onclick={() => operate(selected, op.id)}>
+              {op.label}
+            </button>
+          {/each}
+          {#if !("reason" in outcome)}
+            <button class="primary" onclick={() => startProbe(selected)}>
+              {t("menu.identify")}
+            </button>
+          {/if}
+        </div>
       </div>
     {:else}
       <p class="note">{t("detail.select")}</p>
@@ -621,10 +875,23 @@
       autoExcludeList = next.excludeList;
       confirmBeforeIdentify = next.confirmBeforeIdentify;
       startWithWindows = next.startWithWindows;
-      if (!settingsLoaded) return;
       void saveSettings();
     }}
     onclose={() => (settingsOpen = false)}
+  />
+{/if}
+
+{#if autoAttachOpen}
+  <AutoAttachPanel
+    enabled={autoAttach}
+    rules={autoAttachRules}
+    {devices}
+    writable={settingsWritable}
+    onchange={(next) => {
+      autoAttach = next.enabled;
+      applyRules(next.rules);
+    }}
+    onclose={() => (autoAttachOpen = false)}
   />
 {/if}
 
@@ -663,6 +930,14 @@
   nav .actions {
     display: flex;
     gap: 6px;
+    /* The toolbar wins the space it needs and the tabs scroll instead: a
+       squashed button wraps its label onto two lines and changes the height of
+       the whole bar. */
+    flex: 0 0 auto;
+  }
+
+  nav .actions button {
+    white-space: nowrap;
   }
 
   .backdrop {
@@ -704,6 +979,74 @@
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+  }
+
+  nav .toggle {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  nav .toggle.on {
+    border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+
+  nav .toggle .badge {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--fg-faint);
+  }
+
+  nav .toggle.on .badge {
+    color: var(--accent);
+  }
+
+  .detail-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .auto-attach {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 2px 10px;
+    font-size: 12px;
+  }
+
+  .auto-attach.off {
+    opacity: 0.6;
+  }
+
+  .aa-label {
+    color: var(--fg-muted);
+    margin-right: auto;
+  }
+
+  .aa-option {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+  }
+
+  .aa-option input {
+    margin: 0;
+  }
+
+  .aa-value {
+    margin: 0;
+    max-width: 100%;
+    font-size: 11px;
+    color: var(--fg-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   nav .armed {
@@ -852,6 +1195,7 @@
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 6px;
+    margin-top: auto;
   }
 
   /* Above the footer, not after it: the footer has a fixed height, so an

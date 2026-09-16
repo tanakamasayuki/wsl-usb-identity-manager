@@ -37,8 +37,39 @@ export interface DeviceView {
   problemCode: number | null;
   probes: ProbeOption[];
   actions: Actions;
+  /** What an auto-attach rule could name this device by, and what names it. */
+  autoAttach: AutoAttach;
   /** What a probe found this session, if one has run. */
   identity: Identity | null;
+}
+
+/**
+ * What an auto-attach rule matches on. Mirrors `RuleKind` in
+ * crates/wuim-core/src/autoattach.rs, most specific first.
+ */
+export type RuleKind = "identity" | "serial" | "vid_pid" | "bus_id";
+
+/** One thing about a device that a rule could name. */
+export interface Candidate {
+  kind: RuleKind;
+  value: string;
+}
+
+export interface AutoAttach {
+  /**
+   * Most specific first, and only what the device actually offers: no serial
+   * number means no serial candidate, and no probe has run means no identity
+   * candidate.
+   */
+  candidates: Candidate[];
+  /** The kind of rule matching it right now, if any. */
+  matched: RuleKind | null;
+}
+
+/** One auto-attach rule. Mirrors `Rule` in crates/wuim-core/src/autoattach.rs. */
+export interface AutoAttachRule {
+  kind: RuleKind;
+  value: string;
 }
 
 /**
@@ -63,6 +94,10 @@ export interface Settings {
   confirmBeforeIdentify: boolean;
   /** Start with Windows, through the per-user Run key. */
   startWithWindows: boolean;
+  /** Attach matching devices to WSL without being asked (§9). */
+  autoAttach: boolean;
+  /** What to attach automatically. Empty attaches nothing. */
+  autoAttachRules: AutoAttachRule[];
 }
 
 export interface StoredSettings {

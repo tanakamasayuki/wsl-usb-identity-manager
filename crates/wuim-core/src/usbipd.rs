@@ -159,16 +159,12 @@ pub fn run(operation: Operation, instance_id: &str) -> Result<Executed> {
         .find(|d| d.instance_id.eq_ignore_ascii_case(instance_id))
         .ok_or_else(|| anyhow!("usbipd no longer knows about {instance_id}"))?;
 
-    let bus_id = device
-        .bus_id
-        .as_deref()
-        .ok_or_else(|| anyhow!("{} is not connected", device.description))?;
-    let bus_id = checked_bus_id(bus_id)?;
+    let selector = selector_for(operation, device)?;
 
     let exe = locate()?;
     let extra = operation.extra_args();
     let arguments = std::iter::once(operation.verb())
-        .chain(["--busid", bus_id])
+        .chain([selector.flag, selector.value.as_str()])
         .chain(extra.iter().copied())
         .collect::<Vec<_>>()
         .join(" ");
@@ -191,7 +187,7 @@ pub fn run(operation: Operation, instance_id: &str) -> Result<Executed> {
     }
 
     let output = command(&exe)
-        .args([operation.verb(), "--busid", bus_id])
+        .args([operation.verb(), selector.flag, selector.value.as_str()])
         .args(extra)
         .output()
         .with_context(|| format!("failed to run {}", exe.display()))?;
@@ -207,6 +203,39 @@ pub fn run(operation: Operation, instance_id: &str) -> Result<Executed> {
         stdout,
         stderr,
     })
+}
+
+/// How a device is named on the usbipd command line.
+struct Selector {
+    flag: &'static str,
+    value: String,
+}
+
+/// Decides which name to use for this device, and refuses if there is none.
+///
+/// A connected device is named by its bus id. A device that is not connected
+/// has no bus id at all, which is where every operation but one stops. Unbind
+/// is the exception: the bind record outlives the device, and removing that
+/// record is exactly what is being asked for when a row reads "absent". usbipd
+/// names a record with no device behind it by its persisted GUID.
+fn selector_for(operation: Operation, device: &UsbipdDevice) -> Result<Selector> {
+    if let Some(bus_id) = device.bus_id.as_deref() {
+        return Ok(Selector {
+            flag: "--busid",
+            value: checked_bus_id(bus_id)?.to_owned(),
+        });
+    }
+
+    if operation == Operation::Unbind
+        && let Some(guid) = device.persisted_guid.as_deref()
+    {
+        return Ok(Selector {
+            flag: "--guid",
+            value: checked_guid(guid)?.to_owned(),
+        });
+    }
+
+    bail!("{} is not connected", device.description)
 }
 
 /// Rejects anything that is not a plain `<hub>-<port>`.
@@ -225,6 +254,27 @@ fn checked_bus_id(bus_id: &str) -> Result<&str> {
         Ok(bus_id)
     } else {
         Err(anyhow!("usbipd reported an unusable bus id: {bus_id:?}"))
+    }
+}
+
+/// Rejects anything that is not a plain GUID, for the same reason as
+/// [`checked_bus_id`]: unbind runs elevated, through a command line.
+fn checked_guid(guid: &str) -> Result<&str> {
+    const DASHES: [usize; 4] = [8, 13, 18, 23];
+    let valid = guid.len() == 36
+        && guid.bytes().enumerate().all(|(i, b)| {
+            if DASHES.contains(&i) {
+                b == b'-'
+            } else {
+                b.is_ascii_hexdigit()
+            }
+        });
+    if valid {
+        Ok(guid)
+    } else {
+        Err(anyhow!(
+            "usbipd reported an unusable persisted GUID: {guid:?}"
+        ))
     }
 }
 
@@ -378,6 +428,52 @@ mod tests {
     fn accepts_real_bus_ids() {
         assert_eq!(checked_bus_id("10-1").unwrap(), "10-1");
         assert_eq!(checked_bus_id("2-10").unwrap(), "2-10");
+    }
+
+    #[test]
+    fn an_absent_device_is_unbound_by_its_persisted_guid() {
+        // The row the user sees says "absent" and offers to stop sharing. There
+        // is no bus id to name it with, so usbipd takes the GUID instead.
+        let absent = &parse(SAMPLE).unwrap()[1];
+        assert_eq!(absent.sharing_state(), SharingState::Absent);
+
+        let selector = selector_for(Operation::Unbind, absent).unwrap();
+        assert_eq!(selector.flag, "--guid");
+        assert_eq!(selector.value, "05d75b37-ae96-4b2a-9d0d-5cded25f52eb");
+    }
+
+    #[test]
+    fn nothing_else_can_run_against_an_absent_device() {
+        let absent = &parse(SAMPLE).unwrap()[1];
+        for operation in [Operation::Bind, Operation::Attach, Operation::Detach] {
+            assert!(
+                selector_for(operation, absent).is_err(),
+                "{operation:?} should need a connected device"
+            );
+        }
+    }
+
+    #[test]
+    fn a_connected_device_is_named_by_its_bus_id() {
+        let connected = &parse(SAMPLE).unwrap()[0];
+        let selector = selector_for(Operation::Bind, connected).unwrap();
+        assert_eq!(selector.flag, "--busid");
+        assert_eq!(selector.value, "8-4");
+    }
+
+    #[test]
+    fn rejects_anything_that_is_not_a_guid() {
+        assert!(checked_guid("05d75b37-ae96-4b2a-9d0d-5cded25f52eb").is_ok());
+        for bad in [
+            "",
+            "05d75b37ae964b2a9d0d5cded25f52eb",
+            "05d75b37-ae96-4b2a-9d0d-5cded25f52e",
+            "05d75b37-ae96-4b2a-9d0d-5cded25f52eb ",
+            "05d75b37-ae96-4b2a-9d0d-5cded25f52e&",
+            "zzzzzzzz-ae96-4b2a-9d0d-5cded25f52eb",
+        ] {
+            assert!(checked_guid(bad).is_err(), "accepted {bad:?}");
+        }
     }
 
     #[test]

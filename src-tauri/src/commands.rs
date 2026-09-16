@@ -85,6 +85,9 @@ fn usb_ids() -> &'static UsbIds {
 
 fn to_views(snapshot: &Snapshot) -> Vec<DeviceView> {
     let ids = usb_ids();
+    // Read once for the whole list: every row is measured against the same
+    // rules, and reading them per device would take the lock as many times.
+    let rules = state::with(|store| store.settings.auto_attach_rules.clone());
 
     // An identity belongs to a device that is still plugged in. Anything that
     // has gone is forgotten here rather than lingering to be matched back to
@@ -104,7 +107,7 @@ fn to_views(snapshot: &Snapshot) -> Vec<DeviceView> {
             let identity = state::identity(&row.instance_id.raw)
                 .as_ref()
                 .map(Identity::from);
-            DeviceView::from_row(row, ids, identity)
+            DeviceView::from_row(row, ids, identity, &rules)
         })
         .collect()
 }
@@ -138,11 +141,17 @@ pub struct StoredSettings {
 #[tauri::command]
 pub fn write_settings(settings: SettingsView) -> Result<(), String> {
     logging::info(&format!(
-        "settings: auto_identify={} exclude={:?} confirm={} startup={}",
+        "settings: auto_identify={} exclude={:?} confirm={} startup={} auto_attach={} rules={:?}",
         settings.auto_identify,
         settings.auto_exclude,
         settings.confirm_before_identify,
         settings.start_with_windows,
+        settings.auto_attach,
+        settings
+            .auto_attach_rules
+            .iter()
+            .map(|rule| format!("{:?}:{}", rule.kind, rule.value))
+            .collect::<Vec<_>>(),
     ));
 
     // Applied before the file is written: if the registry refuses, the setting

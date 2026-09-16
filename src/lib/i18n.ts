@@ -10,6 +10,13 @@
 const en = {
   "toolbar.refresh": "Refresh",
   "toolbar.settings": "Settings",
+  "toolbar.auto_attach": "Auto-attach",
+  "toolbar.on": "ON",
+  "toolbar.off": "OFF",
+  "toolbar.auto_attach.hint":
+    "Hands a device to WSL as soon as a rule matches it and it is shared. Click to turn on or off.",
+  "toolbar.auto_attach.rules": "Rules",
+  "toolbar.auto_attach.rules.hint": "Which devices are attached automatically.",
   "toolbar.auto_on": "Auto-identify on",
   "toolbar.auto_on.hint":
     "A device with no serial number is identified as soon as it is plugged in, which restarts the board. Excluded VID:PID are left alone.",
@@ -24,8 +31,8 @@ const en = {
   "col.connection": "Connection",
   "col.device": "Device",
   "col.vidpid": "VID:PID",
-  "col.transport": "Transport",
-  "col.target": "Target",
+  "col.transport": "USB serial",
+  "col.target": "Board",
 
   "state.shared": "Shared",
   "state.attached": "In WSL",
@@ -41,7 +48,49 @@ const en = {
   "target.unidentified": "not identified",
   "target.unidentified.hint": "Click to identify. The board restarts.",
   "target.identifying": "identifying…",
-  "target.unavailable.hint": "Nothing here can be identified beyond the transport.",
+  "target.unavailable.hint": "Nothing here can be identified beyond the USB side.",
+
+  "auto_attach.title": "Automatic attach",
+  "auto_attach.enable": "Attach matching devices to WSL automatically",
+  "auto_attach.enable.note":
+    "A device is attached when a rule below names it, usbipd is already sharing it, and Windows can see it. Sharing still needs administrator rights, so a device that has never been shared is left alone.",
+  "auto_attach.detached.note":
+    "Detaching a device by hand stops it being attached again until it is unplugged and plugged back in. An automatic rule should not undo what you just did.",
+  "auto_attach.rules": "Rules",
+  "auto_attach.empty": "No rules yet, so nothing is attached automatically.",
+  "auto_attach.col.kind": "Match on",
+  "auto_attach.col.value": "Value",
+  "auto_attach.col.matches": "Now",
+  "auto_attach.matches": "{count} connected",
+  "auto_attach.matches.none": "nothing connected",
+  "auto_attach.add": "Add",
+  "auto_attach.remove": "Remove",
+  "auto_attach.close": "Close",
+  "auto_attach.none": "None",
+
+  "auto_attach.kind.identity": "Board ID",
+  "auto_attach.kind.serial": "USB serial",
+  "auto_attach.kind.vid_pid": "VID:PID",
+  "auto_attach.kind.bus_id": "BUSID",
+  "auto_attach.kind.identity.hint":
+    "The board's own ID. It follows the board between adapters and ports, but is only known once the board has been identified — so this rule waits for that, and never sets off an identification itself.",
+  "auto_attach.kind.serial.hint":
+    "The USB serial number. For an adapter or a debug probe this names the adapter, not the board behind it.",
+  "auto_attach.kind.vid_pid.hint": "Every device of this kind, e.g. every CH340.",
+  "auto_attach.kind.bus_id.hint":
+    "Whatever is at this bus id. The bus id is not a stable name: plugging in a hub renumbers it, and the same bus id then means a different device.",
+  "auto_attach.example.identity": "esp32-s3-3485188f6d7c",
+  "auto_attach.example.serial": "5B5F090816",
+  "auto_attach.example.vid_pid": "1a86:7523",
+  "auto_attach.example.bus_id": "12-3",
+  "auto_attach.marked": "Attached automatically, matched on {kind}",
+  "auto_attach.removed_shared":
+    "Removed the {kind} rule, which also covered {count} other device(s).",
+  "state.attaching": "attaching…",
+
+  "detail.auto_attach": "Auto-attach",
+  "detail.auto_attach.off": "Auto-attach is off, so these rules are not acted on.",
+  "detail.auto_attach.none": "Not attached automatically.",
 
   "settings.title": "Automatic identification",
   "settings.auto.label": "Identify a device right after it is plugged in",
@@ -89,10 +138,10 @@ const en = {
   "detail.vendor": "Vendor",
   "detail.usb_product": "USB product",
   "detail.from_usb_ids": "From the USB ID Repository (usb.ids), which does not list every vendor.",
-  "detail.transport": "Transport",
-  "detail.target": "Target",
+  "detail.transport": "USB serial",
+  "detail.target": "Board",
   "detail.target.unknown": "Not identified yet. Identifying reads the board's own ID.",
-  "detail.target.transport_only": "Identified down to the transport only.",
+  "detail.target.transport_only": "Identified down to the USB side only.",
 
   "menu.bind": "Share with usbipd",
   "menu.unbind": "Stop sharing",
@@ -145,6 +194,13 @@ type Key = keyof typeof en;
 const ja: Record<Key, string> = {
   "toolbar.refresh": "更新",
   "toolbar.settings": "設定",
+  "toolbar.auto_attach": "自動 Attach",
+  "toolbar.on": "ON",
+  "toolbar.off": "OFF",
+  "toolbar.auto_attach.hint":
+    "条件に一致し、共有可能になっているデバイスを自動で WSL に接続します。クリックで切り替わります。",
+  "toolbar.auto_attach.rules": "条件",
+  "toolbar.auto_attach.rules.hint": "どのデバイスを自動で接続するかの一覧です。",
   "toolbar.auto_on": "自動識別 ON",
   "toolbar.auto_on.hint":
     "シリアル番号を持たないデバイスは接続された直後に自動で識別され、ボードが再起動します。除外した VID:PID には触れません。",
@@ -159,8 +215,8 @@ const ja: Record<Key, string> = {
   "col.connection": "接続",
   "col.device": "デバイス",
   "col.vidpid": "VID:PID",
-  "col.transport": "Transport",
-  "col.target": "Target",
+  "col.transport": "USB シリアル",
+  "col.target": "ボード",
 
   "state.shared": "共有可能",
   "state.attached": "WSL 接続中",
@@ -176,7 +232,49 @@ const ja: Record<Key, string> = {
   "target.unidentified": "未識別",
   "target.unidentified.hint": "クリックすると識別します。ボードが再起動します。",
   "target.identifying": "識別中…",
-  "target.unavailable.hint": "このデバイスは Transport までの識別に留まります。",
+  "target.unavailable.hint": "このデバイスは USB 側までの識別に留まります。",
+
+  "auto_attach.title": "自動 Attach",
+  "auto_attach.enable": "条件に一致したデバイスを自動で WSL に接続する",
+  "auto_attach.enable.note":
+    "下の条件に一致し、usbipd で共有済みで、Windows から見えているデバイスを接続します。共有には管理者権限が要るため、一度も共有していないデバイスには手を出しません。",
+  "auto_attach.detached.note":
+    "手動で切り離したデバイスは、抜き挿しするまで再接続しません。自分でやった操作を自動処理が取り消すべきではないためです。",
+  "auto_attach.rules": "条件",
+  "auto_attach.empty": "条件がありません。自動接続は行われません。",
+  "auto_attach.col.kind": "種類",
+  "auto_attach.col.value": "値",
+  "auto_attach.col.matches": "現在",
+  "auto_attach.matches": "接続中 {count} 台",
+  "auto_attach.matches.none": "一致なし",
+  "auto_attach.add": "追加",
+  "auto_attach.remove": "削除",
+  "auto_attach.close": "閉じる",
+  "auto_attach.none": "なし",
+
+  "auto_attach.kind.identity": "ボード ID",
+  "auto_attach.kind.serial": "USB シリアル",
+  "auto_attach.kind.vid_pid": "VID:PID",
+  "auto_attach.kind.bus_id": "BUSID",
+  "auto_attach.kind.identity.hint":
+    "ボード自身の ID です。アダプタやポートを変えても追随しますが、識別済みのときしか判りません。この条件は識別されるまで待つだけで、識別を実行することはありません。",
+  "auto_attach.kind.serial.hint":
+    "USB のシリアル番号です。アダプタやデバッグプローブの場合は、その先のボードではなくアダプタ自身を指します。",
+  "auto_attach.kind.vid_pid.hint": "同じ種類のデバイスすべてです（CH340 全部、など）。",
+  "auto_attach.kind.bus_id.hint":
+    "その BUSID にあるものを接続します。BUSID は安定した名前ではありません。ハブを挿すと番号が振り直され、同じ BUSID が別のデバイスを指すようになります。",
+  "auto_attach.example.identity": "esp32-s3-3485188f6d7c",
+  "auto_attach.example.serial": "5B5F090816",
+  "auto_attach.example.vid_pid": "1a86:7523",
+  "auto_attach.example.bus_id": "12-3",
+  "auto_attach.marked": "{kind} の条件に一致し、自動で接続されます",
+  "auto_attach.removed_shared":
+    "{kind} の条件を削除しました。他に {count} 台が一致していました。",
+  "state.attaching": "接続中…",
+
+  "detail.auto_attach": "自動 Attach",
+  "detail.auto_attach.off": "自動 Attach が OFF のため、条件は実行されません。",
+  "detail.auto_attach.none": "自動接続しません。",
 
   "settings.title": "自動識別",
   "settings.auto.label": "接続された直後に自動で識別する",
@@ -224,10 +322,10 @@ const ja: Record<Key, string> = {
   "detail.vendor": "ベンダー",
   "detail.usb_product": "USB 製品名",
   "detail.from_usb_ids": "USB ID Repository（usb.ids）の記載です。全ベンダーが登録しているわけではありません。",
-  "detail.transport": "Transport",
-  "detail.target": "Target",
+  "detail.transport": "USB シリアル",
+  "detail.target": "ボード",
   "detail.target.unknown": "未識別。識別するとボード自身の ID が判ります。",
-  "detail.target.transport_only": "Transport までの識別に留まります。",
+  "detail.target.transport_only": "USB 側までの識別に留まります。",
 
   "menu.bind": "usbipd で共有する",
   "menu.unbind": "共有をやめる",
