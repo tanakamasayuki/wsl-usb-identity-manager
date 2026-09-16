@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.0 - 2026-09-16
+
 - (EN) Lists what Windows enumerates and what `usbipd` has a record of in one list, filtered by state, and runs bind, unbind, attach and detach from it. The administrator prompt appears only for the operations that need one; the application itself runs unelevated.
 - (JA) Windows が列挙しているデバイスと `usbipd` が記録しているデバイスを 1 つのリストに表示し、状態で絞り込み、bind / unbind / attach / detach をそこから実行する。管理者の確認は必要な操作のときだけ出て、アプリ自身は昇格せずに動く。
 - (EN) Identifies the board behind an adapter or a debug probe: an ESP32 by its eFuse MAC, a CH32 RISC-V part by its factory UUID through a WCH-Link. An identity lasts while the device stays plugged in and is never stored — nothing in USB says the board behind an adapter is still the same one after it has been unplugged.
