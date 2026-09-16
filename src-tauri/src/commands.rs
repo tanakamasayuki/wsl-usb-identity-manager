@@ -9,8 +9,10 @@ use std::time::Instant;
 
 use wuim_core::UsbIds;
 use wuim_core::autostart;
+use wuim_core::shell_open;
 use wuim_core::snapshot::{DeviceRow, Snapshot};
-use wuim_core::usbipd::{self, Operation};
+use wuim_core::usbipd::{self, Availability, Operation};
+use wuim_core::webview2;
 use wuim_probe::TargetIdentity;
 
 use crate::logging;
@@ -45,6 +47,51 @@ where
             logging::error(&message);
             message
         })?
+}
+
+/// Whether usbipd is installed and answering (requirement R13.1).
+///
+/// Runs two processes, so it is kept off the main thread and called only at
+/// startup and after a listing fails — not on the two-second timer.
+#[tauri::command]
+pub async fn check_usbipd() -> Result<Availability, String> {
+    off_thread("the usbipd check", || Ok(usbipd::availability())).await
+}
+
+/// Somewhere this application can point Windows at.
+///
+/// An enum rather than a path, so nothing the frontend holds decides what gets
+/// opened: every value here resolves to a folder this application writes to or
+/// to a URL compiled into it.
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OpenTarget {
+    /// The folder holding `wuim.log`.
+    LogFolder,
+    /// The folder holding the settings file.
+    SettingsFolder,
+    UsbipdReleases,
+    Webview2Download,
+}
+
+const USBIPD_RELEASES: &str = "https://github.com/dorssel/usbipd-win/releases/latest";
+
+#[tauri::command]
+pub fn open_target(target: OpenTarget) -> Result<(), String> {
+    let result = match target {
+        OpenTarget::LogFolder => open_parent_of(&logging::path()),
+        OpenTarget::SettingsFolder => open_parent_of(&state::path()),
+        OpenTarget::UsbipdReleases => shell_open::url(USBIPD_RELEASES),
+        OpenTarget::Webview2Download => shell_open::url(webview2::DOWNLOAD_URL),
+    };
+    result.map_err(to_message)
+}
+
+fn open_parent_of(file: &std::path::Path) -> anyhow::Result<()> {
+    let folder = file
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("{} has no folder to open", file.display()))?;
+    shell_open::folder(folder)
 }
 
 /// Lets the frontend write to the same log, so one file has the whole story.
@@ -125,6 +172,7 @@ pub fn read_settings() -> StoredSettings {
         settings,
         writable: state::is_writable(),
         path: state::path().display().to_string(),
+        log_path: logging::path().display().to_string(),
     }
 }
 
@@ -135,6 +183,9 @@ pub struct StoredSettings {
     /// False when the file on disk was refused; the panel says so.
     pub writable: bool,
     pub path: String,
+    /// Where the log is. A release build has no console to print it to, so this
+    /// is the only way the user learns where to look (R13.8).
+    pub log_path: String,
 }
 
 /// Saves the settings the user changed.

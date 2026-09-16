@@ -9,10 +9,12 @@ use std::path::PathBuf;
 use anyhow::{Context, Result, anyhow};
 use windows::Win32::Foundation::ERROR_FILE_NOT_FOUND;
 use windows::Win32::System::Registry::{
-    HKEY, HKEY_CURRENT_USER, KEY_READ, KEY_WRITE, REG_SZ, RegCloseKey, RegDeleteValueW,
-    RegOpenKeyExW, RegQueryValueExW, RegSetValueExW,
+    HKEY, HKEY_CURRENT_USER, KEY_WRITE, REG_SZ, RegCloseKey, RegDeleteValueW, RegOpenKeyExW,
+    RegSetValueExW,
 };
 use windows::core::PCWSTR;
+
+use crate::registry;
 
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 
@@ -65,53 +67,7 @@ fn open(access: u32) -> Result<HKEY> {
 }
 
 fn read_value() -> Result<Option<String>> {
-    let handle = open(KEY_READ.0)?;
-    let name = wide(VALUE_NAME);
-    let mut size = 0u32;
-    let mut kind = REG_SZ;
-
-    let found = unsafe {
-        RegQueryValueExW(
-            handle,
-            PCWSTR(name.as_ptr()),
-            None,
-            Some(&mut kind),
-            None,
-            Some(&mut size),
-        )
-    };
-    if found == ERROR_FILE_NOT_FOUND {
-        let _ = unsafe { RegCloseKey(handle) };
-        return Ok(None);
-    }
-
-    let mut buffer = vec![0u8; size as usize];
-    let read = unsafe {
-        RegQueryValueExW(
-            handle,
-            PCWSTR(name.as_ptr()),
-            None,
-            Some(&mut kind),
-            Some(buffer.as_mut_ptr()),
-            Some(&mut size),
-        )
-    };
-    let _ = unsafe { RegCloseKey(handle) };
-    read.ok()
-        .map_err(|e| anyhow!("could not read the startup entry: {e}"))?;
-
-    buffer.truncate(size as usize);
-    let text: Vec<u16> = buffer
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
-        .collect();
-    Ok(Some(
-        String::from_utf16_lossy(&text)
-            .trim_end_matches('\0')
-            .to_owned(),
-    ))
+    registry::read_string(HKEY_CURRENT_USER, RUN_KEY, VALUE_NAME)
 }
 
 fn write_value(command: &str) -> Result<()> {

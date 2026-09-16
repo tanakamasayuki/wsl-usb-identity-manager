@@ -2,15 +2,28 @@
 // panics and logs are visible while developing.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use wuim_core::single_instance;
+use wuim_core::{shell_open, single_instance, webview2};
 
 mod commands;
 mod logging;
+mod preflight;
 mod state;
 mod view;
 
 fn main() {
     logging::init();
+
+    // Before anything builds a window: the window is a WebView2 control, so
+    // without the runtime there is nothing to draw the interface in and nothing
+    // on screen to say why (requirement R11.2). This is the one check that has
+    // to stop startup rather than disable a feature (R13.2).
+    if !webview2::is_installed() {
+        logging::error("the WebView2 runtime is not installed; cannot open a window");
+        if preflight::ask_to_install_webview2() {
+            let _ = shell_open::url(webview2::DOWNLOAD_URL);
+        }
+        return;
+    }
 
     // The title comes from the same config the window is built from, so the
     // lookup below cannot drift away from what it is looking for.
@@ -51,7 +64,9 @@ fn main() {
             commands::run_operation,
             commands::log_message,
             commands::read_settings,
-            commands::write_settings
+            commands::write_settings,
+            commands::check_usbipd,
+            commands::open_target
         ])
         .run(context)
         .expect("failed to start the application");

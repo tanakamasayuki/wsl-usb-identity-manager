@@ -22,3 +22,10 @@ jiff.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2", features = [] }
+
+# Only for the message shown when there is no WebView2 runtime to draw a window
+# with; see src/preflight.rs.
+windows = { version = "0.62", features = [
+    "Win32_Globalization",
+    "Win32_UI_WindowsAndMessaging",
+] }

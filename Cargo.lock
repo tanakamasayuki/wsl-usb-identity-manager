@@ -5102,6 +5102,7 @@ dependencies = [
  "serde_json",
  "tauri",
  "tauri-build",
+ "windows 0.62.2",
  "wuim-core",
  "wuim-probe",
 ]

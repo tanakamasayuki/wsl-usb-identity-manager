@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  Availability,
   DeviceView,
+  OpenTarget,
   Operation,
   Settings,
   StoredSettings,
@@ -25,6 +27,26 @@ export function readSettings(): Promise<StoredSettings> {
 /** Saves the settings. */
 export function writeSettings(settings: Settings): Promise<void> {
   return invoke("write_settings", { settings });
+}
+
+/**
+ * Whether usbipd is installed and answering (R13.1).
+ *
+ * Runs two processes, so it is called at startup and after a listing fails —
+ * not on the polling timer.
+ */
+export function checkUsbipd(): Promise<Availability> {
+  return invoke<Availability>("check_usbipd");
+}
+
+/**
+ * Asks Windows to open a folder or a page.
+ *
+ * The target is a name, not a path: what each one resolves to is decided in the
+ * backend, so nothing here can point the shell somewhere else.
+ */
+export function openTarget(target: OpenTarget): Promise<void> {
+  return invoke("open_target", { target });
 }
 
 /** Reads the current state. Probes nothing, so it is safe to poll. */

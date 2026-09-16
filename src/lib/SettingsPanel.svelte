@@ -1,7 +1,13 @@
 <script lang="ts">
   import { t } from "./i18n";
+  import type { OpenTarget } from "./types";
 
   interface Props {
+    /** Where the settings file is. Shown so it can be found and read. */
+    settingsPath: string;
+    /** Where the log is. A release build has no console to print it to. */
+    logPath: string;
+    onopen: (target: OpenTarget) => void;
     enabled: boolean;
     /** VID:PID that must never be probed automatically. */
     excludeList: string;
@@ -22,6 +28,9 @@
   }
 
   let {
+    settingsPath,
+    logPath,
+    onopen,
     enabled,
     excludeList,
     confirmBeforeIdentify,
@@ -95,6 +104,25 @@
     <p class="note warn">{t("settings.unsaved")}</p>
   {/if}
 
+  <h3>{t("settings.files")}</h3>
+  <!-- The log records every usbipd command and every probe, and is the first
+       thing to look at when something goes wrong. A release build has no
+       console, so this is the only place its path appears (R13.8). -->
+  <div class="file">
+    <div class="file-text">
+      <span>{t("settings.log")}</span>
+      <code>{logPath}</code>
+    </div>
+    <button onclick={() => onopen("log_folder")}>{t("settings.open_folder")}</button>
+  </div>
+  <div class="file">
+    <div class="file-text">
+      <span>{t("settings.settings_file")}</span>
+      <code>{settingsPath}</code>
+    </div>
+    <button onclick={() => onopen("settings_folder")}>{t("settings.open_folder")}</button>
+  </div>
+
   <div class="actions">
     <button onclick={onclose}>{t("settings.close")}</button>
   </div>
@@ -155,6 +183,42 @@
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 5px;
+  }
+
+  h3 {
+    margin: 22px 0 8px;
+    font-size: 13px;
+    color: var(--fg-muted);
+  }
+
+  .file {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .file-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    font-size: 12px;
+  }
+
+  .file-text code {
+    font-size: 11px;
+    color: var(--fg-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .file button {
+    flex: 0 0 auto;
+    font-size: 12px;
+    padding: 4px 10px;
   }
 
   .note {

@@ -6,8 +6,10 @@
   import ProbeDialog from "./lib/ProbeDialog.svelte";
   import SettingsPanel from "./lib/SettingsPanel.svelte";
   import {
+    checkUsbipd,
     listDevices,
     log,
+    openTarget,
     probeDevice,
     readSettings,
     runOperation,
@@ -15,6 +17,7 @@
   } from "./lib/api";
   import { t } from "./lib/i18n";
   import type {
+    Availability,
     AutoAttachRule,
     Candidate,
     DeviceView,
@@ -109,6 +112,17 @@
   let autoAttachTried = new Set<string>();
   let autoAttaching = false;
 
+  /**
+   * Whether usbipd is there at all.
+   *
+   * Without this, a machine with no usbipd-win shows an empty list and a red
+   * error from every operation — which says what failed but not that the thing
+   * it needs was never installed (R13.1).
+   */
+  let usbipd = $state<Availability | null>(null);
+  /** Where the settings and the log are, for the settings panel (R13.8). */
+  let settingsPath = $state("");
+  let logPath = $state("");
   /** False when the stored file was refused, so nothing is being saved. */
   let settingsWritable = $state(true);
   /** Set once the saved settings have arrived, so they are not saved back over. */
@@ -166,9 +180,39 @@
       // is by definition absent from the previous list.
       devices = next;
       noteArrivals(next);
+      // Cleared only on success: a usbipd that started answering again should
+      // take its own notice down.
+      if (usbipd?.status !== "ok") void recheckUsbipd();
     } catch (e) {
       fail("listing devices", e);
+      // The listing failing is the moment to find out whether usbipd is even
+      // installed, rather than reporting the same error over and over.
+      void recheckUsbipd();
     }
+  }
+
+  /** When the last check ran, so a failing usbipd is not asked twice a second. */
+  let lastUsbipdCheck = 0;
+
+  async function recheckUsbipd() {
+    // Two processes per call, and `refresh` reaches this every two seconds
+    // while anything is wrong. The state it reports does not change that fast.
+    const now = Date.now();
+    if (now - lastUsbipdCheck < 10_000) return;
+    lastUsbipdCheck = now;
+    try {
+      const next = await checkUsbipd();
+      if (next.status !== usbipd?.status) {
+        log("info", `usbipd: ${JSON.stringify(next)}`);
+      }
+      usbipd = next;
+    } catch (e) {
+      log("error", `checking usbipd: ${e}`);
+    }
+  }
+
+  function reveal(target: Parameters<typeof openTarget>[0]) {
+    openTarget(target).catch((e) => fail(`opening ${target}`, e));
   }
 
   /**
@@ -374,11 +418,14 @@
         autoAttach = stored.settings.autoAttach;
         autoAttachRules = stored.settings.autoAttachRules;
         settingsWritable = stored.writable;
+        settingsPath = stored.path;
+        logPath = stored.logPath;
         settingsLoaded = true;
         log("info", `settings from ${stored.path}`);
       })
       .catch((e) => fail("reading the settings", e));
 
+    void recheckUsbipd();
     refresh();
     // Polling stands in for the device-change notifications of requirement
     // R8.1. It is safe because listing never probes (R4.6).
@@ -686,6 +733,30 @@
     </div>
   </nav>
 
+  {#if usbipd && usbipd.status !== "ok"}
+    <!-- Not the error banner: this is a condition rather than an event, it
+         stays until it is fixed, and it says what to do about it. -->
+    <div class="precondition">
+      <div class="precondition-text">
+        <strong>{t(`usbipd.${usbipd.status}`)}</strong>
+        <span>{t(`usbipd.${usbipd.status}.what`)}</span>
+        {#if usbipd.status === "not_answering"}
+          <code>{usbipd.detail}</code>
+        {/if}
+      </div>
+      {#if usbipd.status === "not_installed"}
+        <button onclick={() => reveal("usbipd_releases")}>{t("usbipd.get")}</button>
+      {/if}
+    </div>
+  {:else if usbipd?.status === "ok" && !usbipd.supported}
+    <div class="precondition mild">
+      <div class="precondition-text">
+        <strong>{t("usbipd.old")}</strong>
+        <span>{t("usbipd.old.what", { version: usbipd.version })}</span>
+      </div>
+    </div>
+  {/if}
+
   <div class="scroll">
     <DeviceTable
       devices={shown}
@@ -882,6 +953,9 @@
 
 {#if settingsOpen}
   <SettingsPanel
+    {settingsPath}
+    {logPath}
+    onopen={reveal}
     enabled={autoIdentify}
     excludeList={autoExcludeList}
     {confirmBeforeIdentify}
@@ -1217,6 +1291,46 @@
     justify-content: flex-end;
     gap: 6px;
     margin-top: auto;
+  }
+
+  /* A precondition is not an event: it sits above the list until whatever it
+     names is dealt with, rather than being dismissed. */
+  .precondition {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--fg);
+    background: color-mix(in srgb, var(--warn) 12%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+    user-select: text;
+  }
+
+  .precondition.mild {
+    background: color-mix(in srgb, var(--fg-muted) 8%, transparent);
+    border-bottom-color: var(--border);
+  }
+
+  .precondition-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .precondition code {
+    font-size: 11px;
+    color: var(--fg-muted);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .precondition button {
+    flex: 0 0 auto;
   }
 
   /* Above the footer, not after it: the footer has a fixed height, so an

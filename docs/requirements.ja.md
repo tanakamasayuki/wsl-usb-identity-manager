@@ -1,5 +1,7 @@
 # 要件定義: WSL USB Identity Manager
 
+*[English](requirements.md) | [日本語](requirements.ja.md)*
+
 本書は本アプリケーションの要件を定義する。
 根拠となる実測は [research-findings.ja.md](research-findings.ja.md)、
 識別方式の設計は [identification-policy.ja.md](identification-policy.ja.md) に分離している。
@@ -1075,10 +1077,11 @@ wsl-usb-identity-manager_<version>_x64_portable.zip  ポータブル（portable.
 
 ## 14. ドキュメント規則
 
-**要件 R14.1**: 意思決定に関する文書は日本語のみとし、`*.ja.md` の名前で作成する。
+**要件 R14.1**: `docs/` 配下と README は、英語版 `X.md` と日本語版 `X.ja.md` の
+対で置き、先頭で相互にリンクする。
 
-**要件 R14.2**: 利用者が読む文書（README 等）は英語を原本とし、
-`*.ja.md` で日本語版を作成して相互にリンクする。
+**要件 R14.2**: 両版は同じ内容を述べる。片方だけを変更した状態で終えてはならない。
+節番号と要件番号は両版で一致させ、相互参照がどちらの版でも解決するようにする。
 
 **要件 R14.3**: ソースコード中のコメントと識別子は英語とする。
 

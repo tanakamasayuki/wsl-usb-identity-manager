@@ -105,7 +105,25 @@ export interface StoredSettings {
   /** False when the file on disk was refused; nothing is being saved. */
   writable: boolean;
   path: string;
+  /** Where the log is. A release build has no console to print it to. */
+  logPath: string;
 }
+
+/**
+ * Whether usbipd is installed and answering. Mirrors `Availability` in
+ * crates/wuim-core/src/usbipd.rs.
+ */
+export type Availability =
+  | { status: "ok"; version: string; supported: boolean }
+  | { status: "not_installed" }
+  | { status: "not_answering"; detail: string };
+
+/** Somewhere the backend can point Windows at. */
+export type OpenTarget =
+  | "log_folder"
+  | "settings_folder"
+  | "usbipd_releases"
+  | "webview2_download";
 
 /** Which usbipd operations make sense for a device as it stands. */
 export interface Actions {

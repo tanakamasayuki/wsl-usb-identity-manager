@@ -95,6 +95,22 @@ const en = {
   "detail.auto_attach.off": "Auto-attach is off, so these rules are not acted on.",
   "detail.auto_attach.none": "Not attached automatically.",
 
+  "usbipd.not_installed": "usbipd-win is not installed.",
+  "usbipd.not_installed.what":
+    "This application drives usbipd-win; without it there is nothing to list or attach. Install it, then press Refresh.",
+  "usbipd.not_answering": "usbipd is installed but did not answer.",
+  "usbipd.not_answering.what":
+    "Usually the usbipd service is stopped. Start it from Services, or reinstall usbipd-win.",
+  "usbipd.get": "Get usbipd-win",
+  "usbipd.old": "This usbipd is older than the one this application was written against.",
+  "usbipd.old.what":
+    "Found {version}. The state it reports may be shaped differently, so some devices can read wrongly. Updating usbipd-win is the fix.",
+
+  "settings.files": "Files",
+  "settings.log": "Log",
+  "settings.settings_file": "Settings",
+  "settings.open_folder": "Open folder",
+
   "settings.title": "Automatic identification",
   "settings.auto.label": "Identify a device right after it is plugged in",
   "settings.auto.note":
@@ -280,6 +296,22 @@ const ja: Record<Key, string> = {
   "detail.auto_attach": "自動 Attach",
   "detail.auto_attach.off": "自動 Attach が OFF のため、条件は実行されません。",
   "detail.auto_attach.none": "自動接続しません。",
+
+  "usbipd.not_installed": "usbipd-win がインストールされていません。",
+  "usbipd.not_installed.what":
+    "本アプリは usbipd-win を操作するツールです。これが無いと、一覧に出すものも接続するものもありません。インストールしてから「更新」を押してください。",
+  "usbipd.not_answering": "usbipd はありますが、応答しません。",
+  "usbipd.not_answering.what":
+    "多くの場合 usbipd サービスが停止しています。サービスから開始するか、usbipd-win を再インストールしてください。",
+  "usbipd.get": "usbipd-win を入手",
+  "usbipd.old": "本アプリが想定しているより古い usbipd です。",
+  "usbipd.old.what":
+    "検出したのは {version} です。state の構造が異なる可能性があり、一部のデバイスが正しく読めないことがあります。usbipd-win の更新で解決します。",
+
+  "settings.files": "ファイル",
+  "settings.log": "ログ",
+  "settings.settings_file": "設定",
+  "settings.open_folder": "フォルダを開く",
 
   "settings.title": "自動識別",
   "settings.auto.label": "接続された直後に自動で識別する",

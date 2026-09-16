@@ -1,5 +1,7 @@
 # 識別ポリシー（設計方針）
 
+*[English](identification-policy.md) | [日本語](identification-policy.ja.md)*
+
 前提: [docs/research-findings.ja.md](research-findings.ja.md)
 
 本書は「どのデバイスがどの物理個体なのか」をどう決めるかの設計方針を記す。

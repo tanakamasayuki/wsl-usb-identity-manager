@@ -284,6 +284,68 @@ struct StateDocument {
     devices: Vec<UsbipdDevice>,
 }
 
+/// The oldest `usbipd` whose `state` output this build has been written
+/// against. Older versions report a different JSON shape (R13.1).
+pub const MINIMUM_MAJOR_VERSION: u32 = 5;
+
+/// Whether usbipd is installed and answering.
+///
+/// Checked so that a missing usbipd reads as "install usbipd-win" rather than
+/// as a failure on every operation the user tries (requirements R13.1, R13.2).
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum Availability {
+    /// Found and answering. `supported` is false for a version older than
+    /// [`MINIMUM_MAJOR_VERSION`], which still works but may not be understood.
+    Ok { version: String, supported: bool },
+    /// No `usbipd.exe`, either at the install path or on `PATH`.
+    NotInstalled,
+    /// The executable is there, but it did not answer. Usually the service.
+    NotAnswering { detail: String },
+}
+
+/// Asks usbipd what it is and whether it is running.
+pub fn availability() -> Availability {
+    let Ok(exe) = locate() else {
+        return Availability::NotInstalled;
+    };
+
+    // `--version` answers without the service, so it separates "not installed"
+    // from "installed but not running".
+    let version = match command(&exe).arg("--version").output() {
+        Ok(output) if output.status.success() => {
+            String::from_utf8_lossy(&output.stdout).trim().to_owned()
+        }
+        Ok(output) => {
+            return Availability::NotAnswering {
+                detail: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+            };
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Availability::NotInstalled,
+        Err(e) => {
+            return Availability::NotAnswering {
+                detail: e.to_string(),
+            };
+        }
+    };
+
+    if let Err(e) = query() {
+        return Availability::NotAnswering {
+            detail: format!("{e:#}"),
+        };
+    }
+
+    Availability::Ok {
+        supported: major_version(&version).is_some_and(|major| major >= MINIMUM_MAJOR_VERSION),
+        version,
+    }
+}
+
+/// The leading number of `5.3.0-54+Branch.master.Sha.aa3db8b`.
+fn major_version(version: &str) -> Option<u32> {
+    version.split(['.', '-', '+']).next()?.trim().parse().ok()
+}
+
 /// Runs `usbipd state` and returns what it reports.
 pub fn query() -> Result<Vec<UsbipdDevice>> {
     let exe = locate()?;
@@ -406,6 +468,19 @@ mod tests {
     #[test]
     fn missing_devices_array_is_an_error() {
         assert!(parse("{}").is_err());
+    }
+
+    #[test]
+    fn reads_the_major_version_out_of_what_usbipd_prints() {
+        // As measured: usbipd 5.3.0 prints its build metadata too.
+        assert_eq!(
+            major_version("5.3.0-54+Branch.master.Sha.aa3db8b82c4cb5071fd31bc54211606c70886912"),
+            Some(5)
+        );
+        assert_eq!(major_version("5.3.0"), Some(5));
+        assert_eq!(major_version("4.2.0"), Some(4));
+        assert_eq!(major_version(""), None);
+        assert_eq!(major_version("not a version"), None);
     }
 
     #[test]

@@ -16,11 +16,14 @@ pub mod autoattach;
 pub mod autostart;
 pub mod elevate;
 pub mod instance_id;
+pub mod registry;
+pub mod shell_open;
 pub mod single_instance;
 pub mod snapshot;
 pub mod store;
 pub mod usb_ids;
 pub mod usbipd;
+pub mod webview2;
 pub mod windevice;
 
 pub use autoattach::{Candidate, Rule, RuleKind};
