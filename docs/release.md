@@ -60,18 +60,28 @@ Answer its questions, then let it submit the pull request. Use
 `InstallerType: nullsoft` — WinGet fills in the silent-install switches itself
 for Nullsoft installers, which is why the installer is NSIS and not MSI.
 
-The package identifier is `<Publisher>.<PackageName>` with the spaces removed:
+These are the values to give it:
 
 ```text
-PackageIdentifier   TANAKAMasayuki.WSLUSBIdentityManager
+PackageIdentifier   tanakamasayuki.WSLUSBIdentityManager
 Publisher           TANAKA Masayuki
 PackageName         WSL USB Identity Manager
+ShortDescription    Track which physical device is which when forwarding USB devices to WSL
 ```
 
-`Publisher` and `PackageName` are the ones the installer already reports —
-`bundle.publisher` and `productName` in `src-tauri/tauri.conf.json`. Without
-`bundle.publisher`, Tauri falls back to the second element of the identifier,
-which here would make the publisher `github`.
+**The identifier can never change.** Changing it makes a different package, so
+whatever is submitted first is what `WINGET_IDENTIFIER` has to match exactly,
+for as long as the package exists.
+
+`wingetcreate` asks for all of these rather than reading them: it can extract
+metadata from an MSI, but from an EXE installer it only works out the installer
+type, the architecture and the hash. Tauri's NSIS template writes no
+`CompanyName` into the installer's version info, so there is nothing there for
+it to find.
+
+Set `Scope: user` in the installer manifest. The installer is per-user
+(`installMode: currentUser`), and without it winget assumes a machine-wide
+install and gets upgrades wrong.
 
 Microsoft's validation runs on the pull request and a moderator merges it. That
 takes as long as it takes; nothing on this side can hurry it.

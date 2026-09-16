@@ -60,18 +60,27 @@ wingetcreate new https://github.com/tanakamasayuki/wsl-usb-identity-manager/rele
 WinGet は Nullsoft 指定時にサイレントインストールのスイッチを自動で補うため、
 インストーラを MSI ではなく NSIS にしてある。
 
-パッケージ識別子は `<Publisher>.<PackageName>` から空白を除いたものにする。
+入力する値は以下。
 
 ```text
-PackageIdentifier   TANAKAMasayuki.WSLUSBIdentityManager
+PackageIdentifier   tanakamasayuki.WSLUSBIdentityManager
 Publisher           TANAKA Masayuki
 PackageName         WSL USB Identity Manager
+ShortDescription    Track which physical device is which when forwarding USB devices to WSL
 ```
 
-`Publisher` と `PackageName` はインストーラが申告している値そのもので、
-`src-tauri/tauri.conf.json` の `bundle.publisher` と `productName` である。
-`bundle.publisher` を書かないと、Tauri は identifier の 2 番目の要素を使うため、
-ここでは発行元が `github` になってしまう。
+**識別子は後から変更できない。** 変更すると別パッケージ扱いになるため、
+最初に提出したものが、パッケージが存在する限り `WINGET_IDENTIFIER` と
+完全一致していなければならない値になる。
+
+`wingetcreate` はこれらを読み取らず、対話で尋ねる。MSI からはメタデータを
+取り出せるが、EXE インストーラからはインストーラ種別・アーキテクチャ・
+ハッシュしか判らない。Tauri の NSIS テンプレートはインストーラの
+バージョン情報に `CompanyName` を書かないため、読む対象自体が無い。
+
+installer manifest には `Scope: user` を入れる。
+インストーラは per-user（`installMode: currentUser`）であり、
+これが無いと winget はマシン全体へのインストールとみなし、更新の扱いを誤る。
 
 PR には Microsoft の検証が走り、モデレータがマージする。所要時間はまちまちで、
 こちら側から早める手段はない。
