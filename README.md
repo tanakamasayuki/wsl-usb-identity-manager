@@ -5,9 +5,6 @@
 Track which physical device is which when forwarding USB devices to WSL with
 [usbipd-win](https://github.com/dorssel/usbipd-win).
 
-> Design documents are written in Japanese. See
-> [docs/requirements.ja.md](docs/requirements.ja.md) for the requirements.
-
 ## The problem
 
 Forwarding USB devices to WSL works, until you have more than one of the same adapter.
@@ -137,12 +134,12 @@ download has built up a reputation.
 
 ## Documentation
 
-Design documents are in Japanese.
+Every document is kept in English and Japanese, linked to each other at the top.
 
-- [Requirements](docs/requirements.ja.md)
-- [Measured facts](docs/research-findings.ja.md) — the measurements this design rests on
-- [Identification policy](docs/identification-policy.ja.md)
-- [Release procedure](docs/release.md) (English)
+- [Requirements](docs/requirements.md)
+- [Measured facts](docs/research-findings.md) — the measurements this design rests on
+- [Identification policy](docs/identification-policy.md)
+- [Release procedure](docs/release.md)
 
 ## Related projects
 

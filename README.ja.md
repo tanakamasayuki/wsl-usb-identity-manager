@@ -130,6 +130,8 @@ CH340 の先の基板が、抜かれている間に載せ替えられたかど�
 
 ## ドキュメント
 
+各ドキュメントは英語版と日本語版があり、先頭で相互にリンクしています。
+
 - [要件定義](docs/requirements.ja.md)
 - [実測で確認した事実](docs/research-findings.ja.md) — 本設計の根拠となる測定値
 - [識別ポリシー](docs/identification-policy.ja.md)
