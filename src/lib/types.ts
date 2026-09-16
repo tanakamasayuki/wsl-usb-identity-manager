@@ -108,6 +108,8 @@ export interface TrayView {
   status: string;
   autoAttachLabel: string;
   autoAttachOn: boolean;
+  identifyAllLabel: string;
+  identifyAllEnabled: boolean;
   openLabel: string;
   quitLabel: string;
 }

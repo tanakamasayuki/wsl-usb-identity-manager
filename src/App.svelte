@@ -11,12 +11,14 @@
     listDevices,
     log,
     onCloseRequested,
+    onIdentifyAll,
     onSettingsChanged,
     openTarget,
     probeDevice,
     readSettings,
     runOperation,
     setTray,
+    showWindow,
     writeSettings,
   } from "./lib/api";
   import { t } from "./lib/i18n";
@@ -160,6 +162,11 @@
   );
   const shown = $derived(devices.filter(FILTERS.find((f) => f.id === filter)!.match));
 
+  /** Every connected device that could be identified and has not been. */
+  const unidentified = $derived(
+    devices.filter((d) => d.present && !d.identity && d.probes.some((p) => p.available)),
+  );
+
   /**
    * The selected device, but only while it is one of the rows on screen.
    *
@@ -214,19 +221,24 @@
   let lastTray = "";
 
   function refreshTray() {
+    const counted = t("tray.status", {
+      connected: counts.connected,
+      shared: counts.shared,
+      attached: counts.attached,
+    });
     const view = {
-      tooltip: `${t("app.name")}\n${t("tray.status", {
-        connected: counts.connected,
-        shared: counts.shared,
-        attached: counts.attached,
-      })}`,
-      status: t("tray.status", {
-        connected: counts.connected,
-        shared: counts.shared,
-        attached: counts.attached,
-      }),
+      tooltip: `${t("app.name")}\n${counted}`,
+      // While something is running, the menu says so. Identify-all can be
+      // started from here with the window closed, and several seconds of
+      // boards restarting with nothing on screen would be opaque.
+      status: busy ?? counted,
       autoAttachLabel: t("toolbar.auto_attach"),
       autoAttachOn: autoAttach,
+      identifyAllLabel:
+        unidentified.length > 0
+          ? t("tray.identify_all", { count: unidentified.length })
+          : t("toolbar.identify_all"),
+      identifyAllEnabled: unidentified.length > 0 && busy === null,
       openLabel: t("tray.open"),
       quitLabel: t("tray.quit"),
     };
@@ -241,8 +253,26 @@
   $effect(() => {
     void counts;
     void autoAttach;
+    void unidentified;
+    void busy;
     refreshTray();
   });
+
+  /**
+   * Identify-all, chosen from the tray.
+   *
+   * Runs under the same confirmation setting as the button (R4.7) — and the
+   * confirmation lives in the window, so the window is brought back first when
+   * one is due. With confirmation turned off it goes ahead, which is what
+   * turning it off asked for.
+   */
+  async function identifyAllFromTray() {
+    if (unidentified.length === 0 || busy !== null) return;
+    if (confirmBeforeIdentify) {
+      await showWindow().catch((e) => fail("showing the window", e));
+    }
+    startIdentifyAll();
+  }
 
   /** Closes to the tray, explaining what that means the first time. */
   function requestClose() {
@@ -499,6 +529,7 @@
     // as events rather than as something this side started.
     const unlisten: Promise<() => void>[] = [
       onCloseRequested(requestClose),
+      onIdentifyAll(() => void identifyAllFromTray()),
       onSettingsChanged(() =>
         readSettings()
           .then((stored) => {
@@ -568,13 +599,6 @@
     }
     probeTarget = { device, probe: outcome.probe };
   }
-
-  /** Every connected device that could be identified and has not been. */
-  const unidentified = $derived(
-    devices.filter(
-      (d) => d.present && !d.identity && d.probes.some((p) => p.available),
-    ),
-  );
 
   let confirmingAll = $state(false);
 

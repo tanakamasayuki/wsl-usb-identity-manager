@@ -97,6 +97,7 @@ const en = {
 
   "app.name": "WSL USB Identity Manager",
   "tray.status": "Connected {connected} / shared {shared} / in WSL {attached}",
+  "tray.identify_all": "Identify all ({count})",
   "tray.open": "Open",
   "tray.quit": "Quit",
   "tray.notice.title": "Closing leaves this running",
@@ -308,6 +309,7 @@ const ja: Record<Key, string> = {
 
   "app.name": "WSL USB Identity Manager",
   "tray.status": "接続中 {connected} / 共有 {shared} / WSL {attached}",
+  "tray.identify_all": "一括識別（{count}）",
   "tray.open": "開く",
   "tray.quit": "終了",
   "tray.notice.title": "閉じても終了しません",

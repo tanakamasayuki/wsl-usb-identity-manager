@@ -72,7 +72,8 @@ fn main() {
             commands::check_usbipd,
             commands::open_target,
             commands::set_tray,
-            commands::hide_window
+            commands::hide_window,
+            commands::show_window
         ])
         .setup(move |app| {
             // Not fatal: without a tray the window still works, and refusing to

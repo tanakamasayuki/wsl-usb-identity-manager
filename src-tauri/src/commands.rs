@@ -59,6 +59,12 @@ pub fn set_tray(view: TrayView) -> Result<(), String> {
     tray::apply(view).map_err(to_message)
 }
 
+/// Shows the window, for when something needs to be asked of the user.
+#[tauri::command]
+pub fn show_window(app: tauri::AppHandle) {
+    tray::show(&app);
+}
+
 /// Hides the window, leaving the application in the tray.
 #[tauri::command]
 pub fn hide_window(window: tauri::Window) -> Result<(), String> {

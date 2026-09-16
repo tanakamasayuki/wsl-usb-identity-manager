@@ -61,6 +61,11 @@ export function hideWindow(): Promise<void> {
   return invoke("hide_window");
 }
 
+/** Brings the window back, for when something has to be asked of the user. */
+export function showWindow(): Promise<void> {
+  return invoke("show_window");
+}
+
 /**
  * Runs `handler` when the backend asks the window to close.
  *
@@ -74,6 +79,11 @@ export function onCloseRequested(handler: () => void): Promise<() => void> {
 /** Runs `handler` when the settings changed outside the window — from the tray. */
 export function onSettingsChanged(handler: () => void): Promise<() => void> {
   return listen("settings-changed", handler);
+}
+
+/** Runs `handler` when identify-all was chosen from the tray menu. */
+export function onIdentifyAll(handler: () => void): Promise<() => void> {
+  return listen("identify-all", handler);
 }
 
 /** Reads the current state. Probes nothing, so it is safe to poll. */

@@ -30,6 +30,10 @@ pub struct TrayView {
     pub status: String,
     pub auto_attach_label: String,
     pub auto_attach_on: bool,
+    /// Carries the count, so the menu says how many boards would restart.
+    pub identify_all_label: String,
+    /// False when there is nothing left to identify.
+    pub identify_all_enabled: bool,
     pub open_label: String,
     pub quit_label: String,
 }
@@ -38,6 +42,7 @@ struct Tray {
     icon: TrayIcon<Wry>,
     status: MenuItem<Wry>,
     auto_attach: CheckMenuItem<Wry>,
+    identify_all: MenuItem<Wry>,
     open: MenuItem<Wry>,
     quit: MenuItem<Wry>,
 }
@@ -52,6 +57,7 @@ pub fn create(app: &AppHandle) -> Result<()> {
     let status = MenuItem::with_id(app, "status", "…", false, None::<&str>)?;
     let auto_attach =
         CheckMenuItem::with_id(app, "auto_attach", "Auto-attach", true, false, None::<&str>)?;
+    let identify_all = MenuItem::with_id(app, "identify_all", "Identify all", false, None::<&str>)?;
     let open = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
@@ -61,6 +67,7 @@ pub fn create(app: &AppHandle) -> Result<()> {
             &status,
             &PredefinedMenuItem::separator(app)?,
             &auto_attach,
+            &identify_all,
             &PredefinedMenuItem::separator(app)?,
             &open,
             &quit,
@@ -84,6 +91,7 @@ pub fn create(app: &AppHandle) -> Result<()> {
         icon,
         status,
         auto_attach,
+        identify_all,
         open,
         quit,
     }))
@@ -101,6 +109,8 @@ pub fn apply(view: TrayView) -> Result<()> {
     tray.status.set_text(&view.status)?;
     tray.auto_attach.set_text(&view.auto_attach_label)?;
     tray.auto_attach.set_checked(view.auto_attach_on)?;
+    tray.identify_all.set_text(&view.identify_all_label)?;
+    tray.identify_all.set_enabled(view.identify_all_enabled)?;
     tray.open.set_text(&view.open_label)?;
     tray.quit.set_text(&view.quit_label)?;
     Ok(())
@@ -114,6 +124,14 @@ fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
             app.exit(0);
         }
         "auto_attach" => toggle_auto_attach(app),
+        // Identifying restarts boards, and what it restarts depends on what is
+        // connected right now — which the window is the one tracking. It runs
+        // there, under the same confirmation setting as the button (R4.7).
+        "identify_all" => {
+            if let Err(e) = app.emit("identify-all", ()) {
+                logging::error(&format!("could not ask the window to identify: {e}"));
+            }
+        }
         // The status line is disabled and cannot be clicked.
         other => logging::error(&format!("unknown tray menu item {other}")),
     }

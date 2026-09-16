@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- (EN) Add identify-all to the tray menu, carrying the count of what it would touch and disabled when there is nothing left. It follows the same confirmation setting as the button, and since that confirmation lives in the window, the window is brought back first when one is due. While it runs the tray's status line shows the progress, so starting it with the window closed is not several seconds of boards restarting with nothing on screen.
+- (JA) トレイメニューに一括識別を追加。対象の台数を表示し、対象が無ければ選べない。識別前の確認設定にはボタンと同じように従い、確認はウィンドウの中にあるため、必要ならウィンドウを表示してから尋ねる。実行中はトレイの状態行に進捗を出すので、ウィンドウを閉じたまま始めても「ボードが順に再起動しているのに画面には何も出ない」時間にはならない。
 - (EN) Keep running in the notification area when the window is closed, and quit only from the tray menu. Automatic attach and identification on arrival only work while the process is running, so exiting with the window left the rules that were set up doing nothing. The first close says once that this is not quitting and how to quit; after that it is silent. The menu carries the counts, an auto-attach switch that works with the window closed, open and quit, and its labels come from the interface's own translations rather than a second catalogue in the backend. Started from the autostart entry the application goes straight to the tray without opening a window, which is what that setting was missing. Launching it again while it is resident brings the hidden window back.
 - (JA) ウィンドウを閉じても終了せず通知領域に常駐し、終了はトレイメニューからのみ行うようにした。自動 Attach と接続直後の自動識別はプロセスが動いている間しか効かないため、ウィンドウと一緒に終了すると設定した条件が何もしないまま消えていた。初回の「閉じる」でだけ、終了ではないことと終了の方法を伝え、以後は黙る。メニューには台数、ウィンドウを開かずに使える自動 Attach の切り替え、開く、終了を置き、ラベルは UI と同じ翻訳から作る(バックエンドに二つ目のカタログを持たせない)。自動起動で起動したときはウィンドウを開かずトレイに入る。常駐中にもう一度起動すると、隠れているウィンドウが前に出る。
 

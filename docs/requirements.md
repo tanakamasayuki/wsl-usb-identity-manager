@@ -882,11 +882,25 @@ quitting**, and how to quit. Do not say it again.
 | --- | --- |
 | Status | how many are connected / shared / in WSL (not clickable) |
 | Auto-attach | switches it on and off (one of the routes of R9.9) |
+| Identify all | identifies every connected device that has not been (R4.19); not selectable when there are none |
 | Open | shows the window; a left click on the icon does the same |
 | Quit | exits the application |
 
 **R10.17**: The tray labels come from the same translations as the rest of the
 interface. The backend holds no catalogue of its own (R10.5).
+
+**R10.20**: Identify-all started from the tray follows the same confirmation
+setting as elsewhere (R4.7). When a confirmation is due, the window is shown
+first and then the question asked.
+
+> The confirmation dialog lives in the window. Asked while it is hidden, the
+> work stops in front of a dialog nobody can see.
+
+**R10.21**: While it runs, the tray's status line shows the progress.
+
+> Since identify-all can be started with the window closed, there would
+> otherwise be a stretch of boards restarting one after another with nothing on
+> screen to say so.
 
 **R10.18**: Started through the autostart entry (§7.1), the application goes to
 the notification area **without opening a window**.
