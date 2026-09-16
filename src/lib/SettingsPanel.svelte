@@ -7,6 +7,8 @@
     settingsPath: string;
     /** Where the log is. A release build has no console to print it to. */
     logPath: string;
+    /** Which build this is. */
+    version: string;
     onopen: (target: OpenTarget) => void;
     enabled: boolean;
     /** VID:PID that must never be probed automatically. */
@@ -30,6 +32,7 @@
   let {
     settingsPath,
     logPath,
+    version,
     onopen,
     enabled,
     excludeList,
@@ -103,6 +106,11 @@
   {#if !writable}
     <p class="note warn">{t("settings.unsaved")}</p>
   {/if}
+
+  <h3>{t("settings.about")}</h3>
+  <!-- Next to the log, because a problem report needs both and this is where
+       someone goes looking for the log. -->
+  <p class="version"><code>{t("app.name")} {version}</code></p>
 
   <h3>{t("settings.files")}</h3>
   <!-- The log records every usbipd command and every probe, and is the first
@@ -188,6 +196,16 @@
   h3 {
     margin: 22px 0 8px;
     font-size: 13px;
+    color: var(--fg-muted);
+  }
+
+  .version {
+    margin: 0;
+    font-size: 12px;
+  }
+
+  .version code {
+    font-size: 12px;
     color: var(--fg-muted);
   }
 

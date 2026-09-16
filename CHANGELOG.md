@@ -10,8 +10,10 @@
 - (JA) 接続直後のまだ誰も使っていない数秒の間に自動で識別する。触られては困る機器は VID:PID で除外できる。対象から外れたものは一括識別で拾える。
 - (EN) Attaches devices to WSL by rule, naming them by board ID, USB serial number, VID:PID or bus id. It never shares a device by itself, and never identifies one in order to decide whether to attach it.
 - (JA) 条件に一致したデバイスを自動で WSL に接続する。条件はボード ID / USB シリアル番号 / VID:PID / BUSID のいずれか。自動で共有(bind)することはなく、接続の可否を決めるために識別を実行することもない。
-- (EN) Stays in the notification area. Closing the window does not quit, because automatic attach and identification on arrival only work while the application is running; the tray menu carries the counts, an auto-attach switch, identify-all, and quit. Set to start with Windows, it goes straight to the tray without opening a window.
-- (JA) 通知領域に常駐する。自動 Attach と接続直後の自動識別は動いている間しか効かないため、ウィンドウを閉じても終了しない。トレイメニューには台数、自動 Attach の切り替え、一括識別、終了を置く。Windows と一緒に起動する設定にすると、ウィンドウを開かずトレイに入る。
+- (EN) Stays in the notification area. Closing the window does not quit, because automatic attach and identification on arrival only work while the application is running; the tray menu carries the counts, an auto-attach switch, identify-all, the settings, and quit. Set to start with Windows, it goes straight to the tray without opening a window.
+- (JA) 通知領域に常駐する。自動 Attach と接続直後の自動識別は動いている間しか効かないため、ウィンドウを閉じても終了しない。トレイメニューには台数、自動 Attach の切り替え、一括識別、設定、終了を置く。Windows と一緒に起動する設定にすると、ウィンドウを開かずトレイに入る。
+- (EN) Shows which build it is, next to the path to the log — a problem report needs both, and the log's first line carries the version too.
+- (JA) どのビルドかを、ログの出力先と同じ場所に表示する。不具合の報告には両方が要るため。ログの 1 行目にもバージョンを記録する。
 - (EN) Says what is missing rather than failing operation by operation: the WebView2 runtime is checked before a window is built, and a missing or stopped usbipd is reported above the list with a way to get it. The log and the settings file can be opened from the settings screen.
 - (JA) 足りないものを、操作ごとの失敗ではなくそれとして伝える。WebView2 ランタイムはウィンドウを作る前に確認し、usbipd の未インストールや停止は一覧の上に入手先とともに示す。ログと設定ファイルは設定画面から開ける。
 - (EN) Follows the OS display language, in English and Japanese. Vendor names come from the `usb.ids` that `usbipd-win` already installs, which is read rather than shipped.

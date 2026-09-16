@@ -99,6 +99,7 @@ const en = {
   "tray.status": "Connected {connected} / shared {shared} / in WSL {attached}",
   "tray.identify_all": "Identify all ({count})",
   "tray.open": "Open",
+  "tray.settings": "Settings\u2026",
   "tray.quit": "Quit",
   "tray.notice.title": "Closing leaves this running",
   "tray.notice.body":
@@ -116,6 +117,7 @@ const en = {
   "usbipd.old.what":
     "Found {version}. The state it reports may be shaped differently, so some devices can read wrongly. Updating usbipd-win is the fix.",
 
+  "settings.about": "This build",
   "settings.files": "Files",
   "settings.log": "Log",
   "settings.settings_file": "Settings",
@@ -311,6 +313,7 @@ const ja: Record<Key, string> = {
   "tray.status": "接続中 {connected} / 共有 {shared} / WSL {attached}",
   "tray.identify_all": "一括識別（{count}）",
   "tray.open": "開く",
+  "tray.settings": "設定\u2026",
   "tray.quit": "終了",
   "tray.notice.title": "閉じても終了しません",
   "tray.notice.body":
@@ -328,6 +331,7 @@ const ja: Record<Key, string> = {
   "usbipd.old.what":
     "検出したのは {version} です。state の構造が異なる可能性があり、一部のデバイスが正しく読めないことがあります。usbipd-win の更新で解決します。",
 
+  "settings.about": "このビルド",
   "settings.files": "ファイル",
   "settings.log": "ログ",
   "settings.settings_file": "設定",

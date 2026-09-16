@@ -801,6 +801,13 @@ The operations for the selected device sit alongside them.
 - The `usbipd` operations (§5.2) and identification (§4.3)
 - **Choosing the automatic attach rule** (R9.11)
 
+**R10.22**: The version of the build must be visible in the interface, in the
+same place as the path to the log.
+
+> A report needs the version and the log together. There is no reason to make
+> someone look in two places for them. The value comes from the single version
+> in `Cargo.toml` (R12.4).
+
 **R10.13**: The values in the detail pane must be selectable and copyable.
 
 > What is shown here exists to be pasted into a `usbipd` command or an issue.
@@ -884,6 +891,7 @@ quitting**, and how to quit. Do not say it again.
 | Auto-attach | switches it on and off (one of the routes of R9.9) |
 | Identify all | identifies every connected device that has not been (R4.19); not selectable when there are none |
 | Open | shows the window; a left click on the icon does the same |
+| Settings | shows the window with the settings panel open |
 | Quit | exits the application |
 
 **R10.17**: The tray labels come from the same translations as the rest of the
@@ -1155,6 +1163,7 @@ happened.**
 
 **R13.7**: Record the following to a file.
 
+- The application's name and version, at startup
 - Connections and disconnections (instance id, location path, time)
 - Probes and their results (the device, how long it took, success or failure)
 - The `usbipd` commands run, their exit codes, and what changed in `state`

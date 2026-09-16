@@ -6,12 +6,14 @@
   import ProbeDialog from "./lib/ProbeDialog.svelte";
   import SettingsPanel from "./lib/SettingsPanel.svelte";
   import {
+    appVersion,
     checkUsbipd,
     hideWindow,
     listDevices,
     log,
     onCloseRequested,
     onIdentifyAll,
+    onOpenSettings,
     onSettingsChanged,
     openTarget,
     probeDevice,
@@ -129,6 +131,8 @@
   /** Where the settings and the log are, for the settings panel (R13.8). */
   let settingsPath = $state("");
   let logPath = $state("");
+  /** Which build this is. Shown next to the log path, which is what a report needs. */
+  let version = $state("");
   /**
    * Whether closing the window has been explained once.
    *
@@ -227,7 +231,7 @@
       attached: counts.attached,
     });
     const view = {
-      tooltip: `${t("app.name")}\n${counted}`,
+      tooltip: `${t("app.name")}${version ? ` ${version}` : ""}\n${counted}`,
       // While something is running, the menu says so. Identify-all can be
       // started from here with the window closed, and several seconds of
       // boards restarting with nothing on screen would be opaque.
@@ -240,6 +244,7 @@
           : t("toolbar.identify_all"),
       identifyAllEnabled: unidentified.length > 0 && busy === null,
       openLabel: t("tray.open"),
+      settingsLabel: t("tray.settings"),
       quitLabel: t("tray.quit"),
     };
     const next = JSON.stringify(view);
@@ -530,6 +535,8 @@
     const unlisten: Promise<() => void>[] = [
       onCloseRequested(requestClose),
       onIdentifyAll(() => void identifyAllFromTray()),
+      // The window is shown by the backend before this arrives.
+      onOpenSettings(() => (settingsOpen = true)),
       onSettingsChanged(() =>
         readSettings()
           .then((stored) => {
@@ -541,6 +548,10 @@
           .catch((e) => fail("re-reading the settings", e)),
       ),
     ];
+
+    appVersion()
+      .then((found) => (version = found))
+      .catch((e) => log("error", `reading the version: ${e}`));
 
     void recheckUsbipd();
     refresh();
@@ -1069,6 +1080,7 @@
   <SettingsPanel
     {settingsPath}
     {logPath}
+    {version}
     onopen={reveal}
     enabled={autoIdentify}
     excludeList={autoExcludeList}

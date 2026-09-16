@@ -42,7 +42,17 @@ pub fn init() {
     match OpenOptions::new().create(true).append(true).open(&path) {
         Ok(file) => {
             *FILE.lock().unwrap() = Some(file);
-            write("info", &format!("started, logging to {}", path.display()));
+            // The version goes in the first line: a log attached to a report
+            // is no use without knowing which build wrote it (R13.7).
+            write(
+                "info",
+                &format!(
+                    "started {} v{}, logging to {}",
+                    env!("CARGO_PKG_NAME"),
+                    env!("CARGO_PKG_VERSION"),
+                    path.display()
+                ),
+            );
         }
         Err(e) => {
             // Nothing else to do: the application is still usable without a log.

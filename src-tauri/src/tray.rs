@@ -35,6 +35,7 @@ pub struct TrayView {
     /// False when there is nothing left to identify.
     pub identify_all_enabled: bool,
     pub open_label: String,
+    pub settings_label: String,
     pub quit_label: String,
 }
 
@@ -44,6 +45,7 @@ struct Tray {
     auto_attach: CheckMenuItem<Wry>,
     identify_all: MenuItem<Wry>,
     open: MenuItem<Wry>,
+    settings: MenuItem<Wry>,
     quit: MenuItem<Wry>,
 }
 
@@ -59,6 +61,7 @@ pub fn create(app: &AppHandle) -> Result<()> {
         CheckMenuItem::with_id(app, "auto_attach", "Auto-attach", true, false, None::<&str>)?;
     let identify_all = MenuItem::with_id(app, "identify_all", "Identify all", false, None::<&str>)?;
     let open = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
+    let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
     let menu = Menu::with_items(
@@ -70,6 +73,7 @@ pub fn create(app: &AppHandle) -> Result<()> {
             &identify_all,
             &PredefinedMenuItem::separator(app)?,
             &open,
+            &settings,
             &quit,
         ],
     )?;
@@ -93,6 +97,7 @@ pub fn create(app: &AppHandle) -> Result<()> {
         auto_attach,
         identify_all,
         open,
+        settings,
         quit,
     }))
     .map_err(|_| anyhow!("the tray icon was built twice"))?;
@@ -112,6 +117,7 @@ pub fn apply(view: TrayView) -> Result<()> {
     tray.identify_all.set_text(&view.identify_all_label)?;
     tray.identify_all.set_enabled(view.identify_all_enabled)?;
     tray.open.set_text(&view.open_label)?;
+    tray.settings.set_text(&view.settings_label)?;
     tray.quit.set_text(&view.quit_label)?;
     Ok(())
 }
@@ -119,6 +125,13 @@ pub fn apply(view: TrayView) -> Result<()> {
 fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
     match event.id().as_ref() {
         "open" => show(app),
+        // The panel lives in the window, so the window comes back with it.
+        "settings" => {
+            show(app);
+            if let Err(e) = app.emit("open-settings", ()) {
+                logging::error(&format!("could not open the settings panel: {e}"));
+            }
+        }
         "quit" => {
             logging::info("quit from the tray");
             app.exit(0);

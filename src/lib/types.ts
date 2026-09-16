@@ -111,6 +111,7 @@ export interface TrayView {
   identifyAllLabel: string;
   identifyAllEnabled: boolean;
   openLabel: string;
+  settingsLabel: string;
   quitLabel: string;
 }
 

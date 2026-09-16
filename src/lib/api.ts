@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { listen } from "@tauri-apps/api/event";
 import type {
   Availability,
@@ -19,6 +20,17 @@ import type {
  */
 export function log(level: "info" | "error", message: string): void {
   void invoke("log_message", { level, message }).catch(() => {});
+}
+
+/**
+ * The version of this build.
+ *
+ * Comes from `Cargo.toml`, which is the only place it is written (R12.4), by
+ * way of Tauri's own `app` command — covered by the core permission set, so it
+ * needs no command of ours.
+ */
+export function appVersion(): Promise<string> {
+  return getVersion();
 }
 
 /** Reads the saved settings, and whether saving is working at all. */
@@ -84,6 +96,11 @@ export function onSettingsChanged(handler: () => void): Promise<() => void> {
 /** Runs `handler` when identify-all was chosen from the tray menu. */
 export function onIdentifyAll(handler: () => void): Promise<() => void> {
   return listen("identify-all", handler);
+}
+
+/** Runs `handler` when the settings panel was asked for from the tray menu. */
+export function onOpenSettings(handler: () => void): Promise<() => void> {
+  return listen("open-settings", handler);
 }
 
 /** Reads the current state. Probes nothing, so it is safe to poll. */
