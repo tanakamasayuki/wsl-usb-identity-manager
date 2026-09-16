@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- (EN) Names the publisher in the installer. Without it Tauri falls back to the second element of the bundle identifier, so the installed application reported its publisher as `github` in the uninstall list and to anything reading the installer's metadata.
+- (JA) インストーラに発行元を明記した。未指定だと Tauri は identifier の 2 番目の要素を使うため、インストール済みアプリの発行元が `github` と表示されていた。
+
 ## 1.0.0 - 2026-09-16
 
 - (EN) Lists what Windows enumerates and what `usbipd` has a record of in one list, filtered by state, and runs bind, unbind, attach and detach from it. The administrator prompt appears only for the operations that need one; the application itself runs unelevated.

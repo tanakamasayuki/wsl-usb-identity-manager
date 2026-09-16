@@ -60,6 +60,19 @@ wingetcreate new https://github.com/tanakamasayuki/wsl-usb-identity-manager/rele
 WinGet は Nullsoft 指定時にサイレントインストールのスイッチを自動で補うため、
 インストーラを MSI ではなく NSIS にしてある。
 
+パッケージ識別子は `<Publisher>.<PackageName>` から空白を除いたものにする。
+
+```text
+PackageIdentifier   TANAKAMasayuki.WSLUSBIdentityManager
+Publisher           TANAKA Masayuki
+PackageName         WSL USB Identity Manager
+```
+
+`Publisher` と `PackageName` はインストーラが申告している値そのもので、
+`src-tauri/tauri.conf.json` の `bundle.publisher` と `productName` である。
+`bundle.publisher` を書かないと、Tauri は identifier の 2 番目の要素を使うため、
+ここでは発行元が `github` になってしまう。
+
 PR には Microsoft の検証が走り、モデレータがマージする。所要時間はまちまちで、
 こちら側から早める手段はない。
 

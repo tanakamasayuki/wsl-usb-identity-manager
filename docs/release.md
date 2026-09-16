@@ -60,6 +60,19 @@ Answer its questions, then let it submit the pull request. Use
 `InstallerType: nullsoft` — WinGet fills in the silent-install switches itself
 for Nullsoft installers, which is why the installer is NSIS and not MSI.
 
+The package identifier is `<Publisher>.<PackageName>` with the spaces removed:
+
+```text
+PackageIdentifier   TANAKAMasayuki.WSLUSBIdentityManager
+Publisher           TANAKA Masayuki
+PackageName         WSL USB Identity Manager
+```
+
+`Publisher` and `PackageName` are the ones the installer already reports —
+`bundle.publisher` and `productName` in `src-tauri/tauri.conf.json`. Without
+`bundle.publisher`, Tauri falls back to the second element of the identifier,
+which here would make the publisher `github`.
+
 Microsoft's validation runs on the pull request and a moderator merges it. That
 takes as long as it takes; nothing on this side can hurry it.
 
