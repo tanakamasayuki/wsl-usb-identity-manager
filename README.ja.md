@@ -7,6 +7,10 @@
 
 > 要件は [docs/requirements.ja.md](docs/requirements.ja.md) を参照してください。
 
+![デバイス一覧。シリアル番号を持たない CH340 が 2 個、それぞれの先の ESP32 で区別されている](docs/images/main-window.png)
+
+*シリアル番号を持たない CH340 が 2 個。ケーブルの先のボードで区別されている。*
+
 ## 解決する問題
 
 WSL への USB 転送は動きます。同じアダプタが 2 個以上になるまでは。

@@ -5,6 +5,11 @@
 Track which physical device is which when forwarding USB devices to WSL with
 [usbipd-win](https://github.com/dorssel/usbipd-win).
 
+![The device list: two CH340s with no serial number, each named by the ESP32 behind it](docs/images/main-window.png)
+
+*Two CH340s that report no serial number, told apart by the board on the end of
+each one. The interface follows the OS language; this is the Japanese one.*
+
 ## The problem
 
 Forwarding USB devices to WSL works, until you have more than one of the same adapter.
