@@ -23,6 +23,10 @@ struct Held {
     /// session; nothing is saved, because saving would destroy it.
     writable: bool,
     /// Identities from probes, keyed by device instance id. Never written out.
+    ///
+    /// The confirmed ones: what a board answered while it was plugged in. What
+    /// each device *last* looked like is [`store::LastSeen`], which is written
+    /// out, and the two must not be confused — see the store's module docs.
     identities: HashMap<String, TargetIdentity>,
 }
 
@@ -69,8 +73,22 @@ pub fn with<T>(f: impl FnOnce(&Store) -> T) -> T {
 /// this session, and losing the ability to save is not a reason to lose the
 /// work the user just did.
 pub fn update(f: impl FnOnce(&mut Store)) {
+    update_when(|store| {
+        f(store);
+        true
+    });
+}
+
+/// Changes the store, and writes it out only when `f` reports a change.
+///
+/// The remembered names are offered every device, every refresh, and all but a
+/// handful of those are already what the file says. Writing on each would mean
+/// rewriting the file twice a second to change nothing.
+pub fn update_when(f: impl FnOnce(&mut Store) -> bool) {
     let mut guard = held().lock().unwrap();
-    f(&mut guard.store);
+    if !f(&mut guard.store) {
+        return;
+    }
     if !guard.writable {
         return;
     }
@@ -90,13 +108,53 @@ pub fn path() -> PathBuf {
     held().lock().unwrap().path.clone()
 }
 
-/// Records what a probe found.
+/// Records what a probe found, as this session's answer and as the reminder
+/// that outlives it.
 pub fn remember_identity(instance_id: String, identity: TargetIdentity) {
+    let seen = store::SeenIdentity {
+        identity_key: identity.identity_key.clone(),
+        device_type: identity.device_type.clone(),
+        device_id: identity.device_id.clone(),
+        hardware_revision: identity.hardware_revision.clone(),
+    };
     held()
         .lock()
         .unwrap()
         .identities
-        .insert(instance_id, identity);
+        .insert(instance_id.clone(), identity);
+    update_when(|store| store.remember_identity(&instance_id, seen, store::stamp()));
+}
+
+/// Records the names seen in one pass of the device list.
+///
+/// Takes the whole pass rather than one device at a time so the file is written
+/// once, or not at all. The last name wins rather than the first, so a device
+/// that genuinely renames itself is followed.
+pub fn remember_names(seen: &[(String, String)]) {
+    update_when(|store| {
+        let mut changed = false;
+        for (instance_id, name) in seen {
+            changed |= store.remember_name(instance_id, name);
+        }
+        changed
+    });
+}
+
+pub fn last_seen(instance_id: &str) -> Option<store::LastSeen> {
+    with(|store| store.last_seen(instance_id).cloned())
+}
+
+/// Drops every remembered device, and says how many there were.
+pub fn forget_everything_seen() -> usize {
+    let mut dropped = 0;
+    update(|store| dropped = store.forget_everything_seen());
+    logging::info(&format!("forgot {dropped} remembered device(s) on request"));
+    dropped
+}
+
+/// How many devices are remembered, for the settings screen to offer clearing.
+pub fn remembered_count() -> usize {
+    with(|store| store.last_seen.len())
 }
 
 pub fn identity(instance_id: &str) -> Option<TargetIdentity> {
@@ -108,6 +166,9 @@ pub fn identity(instance_id: &str) -> Option<TargetIdentity> {
 /// Unplugging is the one event after which what is on the end of the cable can
 /// have changed without anything on the USB side saying so. Keeping the identity
 /// across it would be a guess wearing the clothes of a fact.
+///
+/// [`store::LastSeen`] is deliberately left alone: it is already labelled as the
+/// past, so it has nothing to lose by being out of date.
 pub fn forget_absent(present: &[String]) {
     let mut guard = held().lock().unwrap();
     let before = guard.identities.len();

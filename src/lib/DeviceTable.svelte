@@ -43,6 +43,18 @@
       : { text: t("transport.none"), known: false, hint: t("transport.none.hint") };
   }
 
+  /**
+   * The tooltip for a remembered identification.
+   *
+   * The date carries the weight here: the value is kept across restarts, so
+   * "what it was" is only useful next to "when". It goes in the tooltip rather
+   * than the cell because the cell has one line and the identity key has first
+   * claim on it.
+   */
+  function lastHint(device: DeviceView, key: string): string {
+    return t(key, { at: device.lastIdentifiedAt ?? "—" });
+  }
+
   /** Whether a probe could answer for this device, so the cell offers one. */
   function identifiable(device: DeviceView): boolean {
     return device.probes.some((p) => p.available);
@@ -99,6 +111,12 @@
             <!-- The name Windows reports, unchanged. Identifying a board does
                  not rename the device it is plugged into. -->
             <span class="primary">{device.name}</span>
+            <!-- Sharing a device to WSL re-enumerates it as the stub, and
+                 Windows stops reporting what it was. The name from before is
+                 kept beside it so the row is still recognisable. -->
+            {#if device.lastName}
+              <span class="was" title={t("name.last.hint")}>{device.lastName}</span>
+            {/if}
             {#if identity}
               <span class="secondary">{identity.deviceType}</span>
             {/if}
@@ -112,6 +130,25 @@
               <span class="id known" title={t("target.hint")}>{identity.identityKey}</span>
             {:else if probing.has(device.instanceId)}
               <span class="id pending">{t("target.identifying")}</span>
+            {:else if device.lastIdentity && identifiable(device)}
+              <!-- The last answer, greyed, doubling as the button that
+                   confirms it: what the user wants to know is whether this is
+                   still that board, and one click settles it. -->
+              <button
+                class="identify last"
+                title={lastHint(device, "target.last.identify.hint")}
+                onclick={(e) => {
+                  e.stopPropagation();
+                  onselect(device.instanceId);
+                  onidentify(device.instanceId);
+                }}
+              >
+                {device.lastIdentity.identityKey}
+              </button>
+            {:else if device.lastIdentity}
+              <span class="id last" title={lastHint(device, "target.last.hint")}
+                >{device.lastIdentity.identityKey}</span
+              >
             {:else if identifiable(device)}
               <!-- The action sits where the answer will appear, so identifying
                    is one click from the question rather than a trip through a
@@ -245,6 +282,25 @@
 
   .id.pending {
     color: var(--accent);
+  }
+
+  /* Reference, not an answer: the same value the live one would carry, drawn
+     so it cannot be mistaken for one. */
+  .was,
+  .id.last,
+  .identify.last {
+    color: var(--fg-faint);
+    font-style: italic;
+  }
+
+  .was {
+    font-size: 12px;
+    margin-left: 8px;
+  }
+
+  .id.last,
+  .identify.last {
+    font-family: var(--mono);
   }
 
   .identify {

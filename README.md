@@ -88,6 +88,7 @@ Separate **where a device is plugged in** from **what device it is**.
 | Runtime connection | bus ID, COM number, `/dev/ttyUSB0`, attach state | shown, never used as a name |
 | USB identity | VID/PID, USB serial, port path | read from Windows every time |
 | Target identity | the board ID read from the target itself | for as long as the device stays plugged in |
+| What it was last time | the name and board ID a device last had | saved, shown greyed, never acted on |
 | Your own settings | auto-attach rules, what to leave alone | saved |
 
 Anything that cannot be pinned down from USB descriptors is identified by **asking the

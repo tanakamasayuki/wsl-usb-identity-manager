@@ -71,6 +71,7 @@ fn main() {
             commands::write_settings,
             commands::check_usbipd,
             commands::open_target,
+            commands::clear_remembered,
             commands::set_tray,
             commands::hide_window,
             commands::show_window

@@ -174,6 +174,31 @@ attach すると Windows 上ではデバイスが `VID_80EE&PID_CAFE`（VBoxUSB 
 → attach 中でも同一性の追跡は可能。
 ただし **Windows からデバイス本体には触れない**（プローブ不可）。
 
+### 名前が失われる条件
+
+ドライバがスタブに差し替わると、Windows 側の
+`DEVPKEY_Device_FriendlyName` / `DeviceDesc` はスタブのものになり、
+**元のデバイス名は読み取れなくなる**。差し替えが起きるのは次の 2 つ。
+
+| 操作 | ドライバ差し替え | 名前 |
+| --- | --- | --- |
+| `bind` | 起きない | そのまま |
+| `bind --force` | 起きる | 失われる |
+| `attach` | 起きる | 失われる |
+
+`usbipd bind --help` より:
+「Unless the `--force` option is used, shared devices remain available to the
+host until they are attached to another machine.」
+
+本アプリは `--force` を使わないため、名前が失われるのは attach のときだけである。
+
+代わりに `usbipd state` の `Description` が使えるが、これは bind 時点の
+キャッシュであり、差し替え後に取られていれば汎用名になる。
+実測した `usbipd state` には、説明を持たない永続レコードが
+`Unknown Device #1` として現れていた。
+
+→ 直前に取得できていた名前を参考値として保持する（R10.23）。
+
 ---
 
 ## F5. usbipd 5.3 の自動化機能は「個体」を区別できない

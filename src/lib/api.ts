@@ -78,6 +78,11 @@ export function showWindow(): Promise<void> {
   return invoke("show_window");
 }
 
+/** Drops every remembered name and identification, returning how many there were. */
+export function clearRemembered(): Promise<number> {
+  return invoke("clear_remembered");
+}
+
 /**
  * Runs `handler` when the backend asks the window to close.
  *

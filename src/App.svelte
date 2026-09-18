@@ -8,6 +8,7 @@
   import {
     appVersion,
     checkUsbipd,
+    clearRemembered,
     hideWindow,
     listDevices,
     log,
@@ -133,6 +134,8 @@
   let logPath = $state("");
   /** Which build this is. Shown next to the log path, which is what a report needs. */
   let version = $state("");
+  /** How many devices have a remembered name or identification (R4.21). */
+  let remembered = $state(0);
   /**
    * Whether closing the window has been explained once.
    *
@@ -255,6 +258,16 @@
 
   // Counts change with every poll, and the switch can be flipped from either
   // side, so the menu follows both.
+  $effect(() => {
+    if (!settingsOpen) return;
+    // Devices are remembered as they are seen and identified, all of which
+    // happens with this panel closed. Reading the count once at startup would
+    // show a number that was right when the application began.
+    readSettings()
+      .then((stored) => (remembered = stored.remembered))
+      .catch((e) => fail("reading the settings", e));
+  });
+
   $effect(() => {
     void counts;
     void autoAttach;
@@ -525,6 +538,7 @@
         settingsWritable = stored.writable;
         settingsPath = stored.path;
         logPath = stored.logPath;
+        remembered = stored.remembered;
         settingsLoaded = true;
         log("info", `settings from ${stored.path}`);
       })
@@ -919,6 +933,9 @@
       <div class="detail">
         <div class="detail-head">
           <strong>{selected.name}</strong>
+          {#if selected.lastName}
+            <span class="was" title={t("name.last.hint")}>{selected.lastName}</span>
+          {/if}
           {#if identity}
             <span class="type">{identity.deviceType}</span>
           {/if}
@@ -982,6 +999,13 @@
             {#if identity}
               <code class="key">{identity.identityKey}</code>
               <span class="note">{identity.deviceType} / {identity.deviceId}</span>
+            {:else if selected.lastIdentity}
+              <code class="key last">{selected.lastIdentity.identityKey}</code>
+              <span
+                class="note"
+                title={t("target.last.hint", { at: selected.lastIdentifiedAt ?? "—" })}
+                >{t("detail.target.last", { at: selected.lastIdentifiedAt ?? "—" })}</span
+              >
             {:else if selected.needsProbe}
               <span class="note">{t("detail.target.unknown")}</span>
             {:else}
@@ -1088,6 +1112,18 @@
     {startWithWindows}
     graceSeconds={GRACE_SECONDS}
     writable={settingsWritable}
+    {remembered}
+    onforget={() => {
+      // Refreshing afterwards is what makes it visible: the greyed values are
+      // in the rows, not in this panel.
+      clearRemembered()
+        .then((dropped) => {
+          remembered = 0;
+          log("info", `forgot ${dropped} remembered device(s)`);
+          return refresh();
+        })
+        .catch((e) => fail("clearing the remembered devices", e));
+    }}
     onchange={(next) => {
       autoIdentify = next.enabled;
       autoExcludeList = next.excludeList;
@@ -1407,6 +1443,20 @@
   .key {
     color: var(--ok);
     font-weight: 600;
+  }
+
+  /* What was last read, rather than what is known now. Greyed and italic in
+     both places it appears, so the distinction does not have to be relearned
+     between the list and this pane. */
+  .key.last,
+  .was {
+    color: var(--fg-faint);
+    font-weight: 400;
+    font-style: italic;
+  }
+
+  .was {
+    font-size: 12px;
   }
 
   .type {

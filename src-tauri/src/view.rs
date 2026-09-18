@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use wuim_core::UsbIds;
 use wuim_core::autoattach::{self, Candidate, Rule, RuleKind};
 use wuim_core::snapshot::DeviceRow;
-use wuim_core::store::Settings;
+use wuim_core::store::{self, Settings};
 use wuim_probe::TargetIdentity;
 use wuim_probe::notes;
 
@@ -78,6 +78,54 @@ pub struct DeviceView {
     /// What a probe found this session, if one has run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub identity: Option<Identity>,
+    /// What the device was called the last time Windows could describe it, when
+    /// that is not the name being shown now. Reference only: shown apart from
+    /// `name` rather than in place of it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_name: Option<String>,
+    /// The last identification, when there is no current one. Reference only —
+    /// after an unplug the board on the end of the cable need not be the one
+    /// this names, so it is never a rule candidate.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_identity: Option<Identity>,
+    /// When `last_identity` was read, as `2026-09-18 10:22:31`. It survives a
+    /// restart, so how old it is decides how much it is worth.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_identified_at: Option<String>,
+}
+
+/// What was last known about a device, for [`DeviceView::from_row`] to fall
+/// back on where the live value has gone.
+///
+/// Its own type rather than `state::LastSeen` so this module keeps deciding the
+/// shape of the wire format on its own, and stays testable without a process
+/// holding a settings file.
+#[derive(Debug, Clone, Default)]
+pub struct LastKnown {
+    pub name: Option<String>,
+    pub identity: Option<Identity>,
+    pub identified_at: Option<String>,
+}
+
+impl From<&store::LastSeen> for LastKnown {
+    fn from(seen: &store::LastSeen) -> Self {
+        Self {
+            name: seen.name.clone(),
+            identity: seen.identity.as_ref().map(Identity::from),
+            identified_at: seen.identified_at.clone(),
+        }
+    }
+}
+
+impl From<&store::SeenIdentity> for Identity {
+    fn from(seen: &store::SeenIdentity) -> Self {
+        Self {
+            identity_key: seen.identity_key.clone(),
+            device_type: seen.device_type.clone(),
+            device_id: seen.device_id.clone(),
+            hardware_revision: seen.hardware_revision.clone(),
+        }
+    }
 }
 
 /// Settings as the frontend sees them.
@@ -205,9 +253,14 @@ impl DeviceView {
         row: &DeviceRow,
         ids: &UsbIds,
         identity: Option<Identity>,
+        last: LastKnown,
         rules: &[Rule],
     ) -> Self {
         let usbipd = row.usbipd.as_ref();
+        let last_name = worth_showing_name(last.name, &row.name);
+        let last_identity = worth_showing_identity(last.identity, identity.as_ref());
+        // The date belongs to the value it dates; without one it is noise.
+        let last_identified_at = last.identified_at.filter(|_| last_identity.is_some());
         let (vendor, usb_product) = match row.instance_id.vid_pid() {
             Some((vid, pid)) => (
                 ids.vendor(vid).map(str::to_owned),
@@ -244,9 +297,36 @@ impl DeviceView {
             problem_code: row.windows.as_ref().and_then(|w| w.problem_code),
             probes: probe_options(row),
             actions: actions(row),
+            // Only the confirmed identity is a candidate. `last_identity` is
+            // not offered here, and must not be: a rule that fired on it would
+            // hand a board to WSL on the strength of what used to be plugged
+            // into that port.
             auto_attach: auto_attach(row, identity.as_ref(), rules),
             identity,
+            last_name,
+            last_identity,
+            last_identified_at,
         }
+    }
+}
+
+/// The remembered name, where it still tells the user something.
+///
+/// Suppressed when it matches the live name, which it does whenever Windows can
+/// describe the device: the same string twice in one cell reads as two devices,
+/// not as one device with a history.
+fn worth_showing_name(last: Option<String>, current: &str) -> Option<String> {
+    last.filter(|name| name != current)
+}
+
+/// The remembered identification, where there is no current one to prefer.
+///
+/// A confirmed identity is the answer, and showing the old one beside it would
+/// only invite the question of which to believe.
+fn worth_showing_identity(last: Option<Identity>, current: Option<&Identity>) -> Option<Identity> {
+    match current {
+        Some(_) => None,
+        None => last,
     }
 }
 
@@ -366,6 +446,45 @@ mod tests {
             })
             .collect();
         assert_eq!(spellings, ["identity", "serial", "vid_pid", "bus_id"]);
+    }
+
+    fn identity(key: &str) -> Identity {
+        Identity {
+            identity_key: key.to_owned(),
+            device_type: "esp32-s3".to_owned(),
+            device_id: key.to_owned(),
+            hardware_revision: None,
+        }
+    }
+
+    #[test]
+    fn a_remembered_name_is_shown_only_when_it_differs() {
+        // Windows can see the device, so the name it reports is the one that
+        // was remembered: nothing to add.
+        assert_eq!(
+            worth_showing_name(Some("USB-SERIAL CH340".to_owned()), "USB-SERIAL CH340"),
+            None
+        );
+        // Shared to WSL: the live name is whatever is left, and what the device
+        // was called is worth keeping on screen.
+        assert_eq!(
+            worth_showing_name(Some("USB-SERIAL CH340".to_owned()), "USB Input Device"),
+            Some("USB-SERIAL CH340".to_owned())
+        );
+        assert_eq!(worth_showing_name(None, "USB Input Device"), None);
+    }
+
+    #[test]
+    fn a_remembered_identity_gives_way_to_a_confirmed_one() {
+        let known = identity("esp32-s3-3485188f6d7c");
+        let older = identity("esp32-s3-d83bda42d640");
+
+        assert!(worth_showing_identity(Some(older.clone()), Some(&known)).is_none());
+        assert_eq!(
+            worth_showing_identity(Some(older.clone()), None).map(|i| i.identity_key),
+            Some(older.identity_key)
+        );
+        assert!(worth_showing_identity(None, None).is_none());
     }
 
     #[test]

@@ -41,6 +41,23 @@ export interface DeviceView {
   autoAttach: AutoAttach;
   /** What a probe found this session, if one has run. */
   identity: Identity | null;
+  /**
+   * What the device was called the last time Windows could describe it, when
+   * that is not `name`. Reference only — shown beside the live name, never
+   * instead of it.
+   */
+  lastName?: string;
+  /**
+   * The last identification, when there is no current one. Reference only: the
+   * board on the end of the cable may have been swapped since, so this is never
+   * matched by a rule.
+   */
+  lastIdentity?: Identity;
+  /**
+   * When `lastIdentity` was read, as `2026-09-18 10:22:31`. It survives a
+   * restart, so how old it is decides how much it is worth.
+   */
+  lastIdentifiedAt?: string;
 }
 
 /**
@@ -122,6 +139,8 @@ export interface StoredSettings {
   path: string;
   /** Where the log is. A release build has no console to print it to. */
   logPath: string;
+  /** How many devices have a remembered name or identification (R4.21). */
+  remembered: number;
 }
 
 /**

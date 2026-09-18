@@ -182,6 +182,31 @@ the port path — carries over unchanged.** `usbipd state` returns it as
 → Identity can still be tracked during an attach. But **Windows cannot reach the
 device itself**, so it cannot be probed.
 
+### When the name is lost
+
+Once the driver has been swapped for the stub, Windows'
+`DEVPKEY_Device_FriendlyName` and `DeviceDesc` are the stub's, and **the device's
+own name can no longer be read**. Two operations swap it:
+
+| Operation | Driver swapped | Name |
+| --- | --- | --- |
+| `bind` | no | kept |
+| `bind --force` | yes | lost |
+| `attach` | yes | lost |
+
+From `usbipd bind --help`: "Unless the `--force` option is used, shared devices
+remain available to the host until they are attached to another machine."
+
+This application never passes `--force`, so an attach is the only operation of
+its own that loses the name.
+
+What stands in is the `Description` in `usbipd state`, which is the description
+cached at bind — generic in turn if the cache was taken after the swap. A
+measured `usbipd state` held one persisted record with no description at all,
+reported as `Unknown Device #1`.
+
+→ The name last seen is kept for reference (R10.23).
+
 ---
 
 ## F5. usbipd 5.3's own automation cannot tell units apart

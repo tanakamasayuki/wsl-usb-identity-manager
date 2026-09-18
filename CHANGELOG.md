@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- (EN) Shows what a device was last identified as, greyed and dated, where there is no current answer, and keeps it across a restart — a device already attached to WSL cannot be probed at all, so without it a machine that starts with its boards forwarded can say nothing about them. A confirmed identity is still dropped on disconnect and still never saved as one, and the greyed value is never matched by an automatic-attach rule. In the list it doubles as the button that re-confirms it.
+- (JA) 識別結果が無いデバイスに、最後に識別できた内容を日時付きのグレーで表示し、再起動しても残す。Attach 中のデバイスはそもそも識別できないため、これが無いとボードを Attach したまま起動した PC は何も答えられない。確定した識別結果を切断で破棄することも、確定情報としては保存しないことも変わらない。グレーの値は自動 Attach の条件には一致しない。一覧ではそのまま再識別のボタンを兼ねる。
+- (EN) Keeps the name a device had before it was handed to WSL. An attached device is re-enumerated as the forwarding stub, so the name Windows had for it is gone; the previous one is shown beside whatever is left.
+- (JA) WSL へ渡す前のデバイス名を保持する。Attach 中のデバイスは転送用スタブとして再列挙されるため Windows 側の名前が失われる。残っている名前の横に、それまでの名前を併記する。
+- (EN) Says in the settings how many devices are remembered, and clears them on request. This is the one part of the file that can be wrong without anything having gone wrong: move a board to another port and its old entry stays behind. The oldest is dropped past 200 devices.
+- (JA) 記憶しているデバイスの件数を設定画面に示し、まとめて消去できるようにした。ここだけは何も壊れていなくても間違いうる——ボードを別のポートへ移せば、前の記録はその場に残る。200 件を超えたら古いものから捨てる。
+
 ## 1.0.1 - 2026-09-16
 
 - (EN) Names the publisher in the installer. Without it Tauri falls back to the second element of the bundle identifier, so the installed application reported its publisher as `github` in the uninstall list and to anything reading the installer's metadata.

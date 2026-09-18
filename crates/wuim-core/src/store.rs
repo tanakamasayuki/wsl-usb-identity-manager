@@ -4,13 +4,21 @@
 //! application thinks (requirement R7.3), and because a portable install should
 //! be able to carry it around.
 //!
-//! **No identities are stored.** An earlier version cached probe results and
-//! matched a device back to one by its port, or by the serial number of the
-//! adapter in front of it. Neither says anything about the board on the other
-//! end of the cable: a USB-serial adapter can be moved to a different board
-//! without one byte changing on the USB side, so the match could be confidently
-//! wrong, which is worse than knowing nothing. Identities now come from asking
-//! the board, and last only while it stays plugged in.
+//! **No identity is stored as a fact.** A probe result cannot be matched back to
+//! a device by its port, or by the serial number of the adapter in front of it:
+//! neither says anything about the board on the other end of the cable, which
+//! can be swapped without one byte changing on the USB side. A match made that
+//! way is confidently wrong, which is worse than knowing nothing. A confirmed
+//! identity therefore comes from asking the board, and lasts only while it
+//! stays plugged in.
+//!
+//! What is stored is [`LastSeen`]: the name and identification a device last
+//! had, as a reminder for the person reading the list. It survives a restart
+//! because the alternative is worse — a device already attached to WSL cannot be
+//! probed at all (finding F4), so without this a machine that starts with its
+//! boards already forwarded can never say which is which. Read back, it is
+//! marked as the past (R4.21) and is never a candidate for a rule (R4.22). The
+//! guarantee above is about what the application acts on, and that is unchanged.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -24,11 +32,22 @@ use crate::autoattach::{self, Rule};
 /// Bumped only alongside a migration. See [`load`].
 pub const SCHEMA_VERSION: u32 = 1;
 
+/// How many devices are remembered. Least recently seen dropped first.
+///
+/// A bench accumulates ports faster than it accumulates boards, and every port
+/// a device has ever been plugged into earns an entry. The cap keeps the file
+/// readable by hand (R7.3) without the user having to think about it.
+pub const LAST_SEEN_LIMIT: usize = 200;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Store {
     pub schema_version: u32,
     #[serde(default)]
     pub settings: Settings,
+    /// What each device last looked like. Least recently seen first, so the end
+    /// of the list is the most recent and the front is what the cap drops.
+    #[serde(default)]
+    pub last_seen: Vec<LastSeen>,
 }
 
 impl Default for Store {
@@ -36,6 +55,131 @@ impl Default for Store {
         Self {
             schema_version: SCHEMA_VERSION,
             settings: Settings::default(),
+            last_seen: Vec::new(),
+        }
+    }
+}
+
+/// What a device looked like the last time anything could describe it.
+///
+/// A reminder, not a record of what is plugged in now. See the module docs for
+/// why it is kept and what it may not be used for.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LastSeen {
+    /// The device instance id it was seen on. For a device with no serial
+    /// number this derives from the port, so the entry says as much about the
+    /// socket as about the device — which is exactly why it stays a reminder.
+    pub instance_id: String,
+    /// The name Windows reported while it could still see the device.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<SeenIdentity>,
+    /// When [`Self::identity`] was read, as `2026-09-18 10:22:31`.
+    ///
+    /// A display string rather than an instant: nothing computes with it, and
+    /// its whole job is to let someone judge how old the answer is — in the
+    /// file as readily as in the window.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identified_at: Option<String>,
+}
+
+/// An identification as it is written down.
+///
+/// Its own type rather than `wuim_probe::TargetIdentity`, which this crate
+/// could not name anyway: this one is a file format, and a field added to a
+/// probe result has no business changing what is on disk.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SeenIdentity {
+    pub identity_key: String,
+    pub device_type: String,
+    pub device_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hardware_revision: Option<String>,
+}
+
+/// The current time in the form [`LastSeen::identified_at`] holds.
+pub fn stamp() -> String {
+    Zoned::now().strftime("%F %T").to_string()
+}
+
+impl Store {
+    pub fn last_seen(&self, instance_id: &str) -> Option<&LastSeen> {
+        self.last_seen
+            .iter()
+            .find(|seen| seen.instance_id == instance_id)
+    }
+
+    /// Records the name a device is going by, returning whether that changed
+    /// anything.
+    ///
+    /// The caller writes the file only when it did. This runs against every row
+    /// of every refresh, and saving each time would rewrite the file twice a
+    /// second for no reason.
+    pub fn remember_name(&mut self, instance_id: &str, name: &str) -> bool {
+        let entry = self.entry(instance_id);
+        if entry.name.as_deref() == Some(name) {
+            return false;
+        }
+        entry.name = Some(name.to_owned());
+        self.cap();
+        true
+    }
+
+    /// Records what a probe found, with the time it found it.
+    pub fn remember_identity(
+        &mut self,
+        instance_id: &str,
+        identity: SeenIdentity,
+        at: String,
+    ) -> bool {
+        let entry = self.entry(instance_id);
+        if entry.identity.as_ref() == Some(&identity) {
+            return false;
+        }
+        entry.identity = Some(identity);
+        entry.identified_at = Some(at);
+        self.cap();
+        true
+    }
+
+    /// Drops every remembered device.
+    ///
+    /// Offered to the user because this is the one part of the file that can go
+    /// wrong without anything having gone wrong: boards move between ports, and
+    /// a list of what used to be where eventually stops helping.
+    pub fn forget_everything_seen(&mut self) -> usize {
+        let dropped = self.last_seen.len();
+        self.last_seen.clear();
+        dropped
+    }
+
+    /// Finds or creates the entry, moving it to the end so the list stays in
+    /// least-recently-seen order.
+    fn entry(&mut self, instance_id: &str) -> &mut LastSeen {
+        let found = self
+            .last_seen
+            .iter()
+            .position(|seen| seen.instance_id == instance_id);
+        let moved = match found {
+            Some(at) => self.last_seen.remove(at),
+            None => LastSeen {
+                instance_id: instance_id.to_owned(),
+                name: None,
+                identity: None,
+                identified_at: None,
+            },
+        };
+        self.last_seen.push(moved);
+        self.last_seen.last_mut().expect("just pushed")
+    }
+
+    /// Enforces [`LAST_SEEN_LIMIT`]. Applied on the way in as well, so a file
+    /// edited by hand cannot grow without bound.
+    pub fn cap(&mut self) {
+        if self.last_seen.len() > LAST_SEEN_LIMIT {
+            let excess = self.last_seen.len() - LAST_SEEN_LIMIT;
+            self.last_seen.drain(..excess);
         }
     }
 }
@@ -155,7 +299,10 @@ pub fn load(path: &Path) -> Loaded {
     // Only version 1 exists. When a second one appears, migrate here and move
     // the original aside first, as requirement R7.5 describes.
     match serde_json::from_str::<Store>(&text) {
-        Ok(store) => Loaded::Ok(store),
+        Ok(mut store) => {
+            store.cap();
+            Loaded::Ok(store)
+        }
         Err(e) => Loaded::Refused {
             reason: format!("{} could not be parsed: {e}", path.display()),
         },
@@ -296,5 +443,114 @@ mod tests {
         let path = temp("atomic.json");
         save(&path, &Store::default()).unwrap();
         assert!(!path.with_extension("json.tmp").exists());
+    }
+
+    fn seen(key: &str) -> SeenIdentity {
+        SeenIdentity {
+            identity_key: key.to_owned(),
+            device_type: "esp32-s3".to_owned(),
+            device_id: key.to_owned(),
+            hardware_revision: None,
+        }
+    }
+
+    #[test]
+    fn a_name_already_recorded_is_not_written_again() {
+        let mut store = Store::default();
+        assert!(store.remember_name("USB\\a", "CH340"));
+        // Every refresh offers the same name; only a change is worth a write.
+        assert!(!store.remember_name("USB\\a", "CH340"));
+        assert!(store.remember_name("USB\\a", "CH343"));
+        assert_eq!(
+            store.last_seen("USB\\a").unwrap().name.as_deref(),
+            Some("CH343")
+        );
+        assert_eq!(store.last_seen.len(), 1);
+    }
+
+    #[test]
+    fn an_identification_is_dated_and_survives_a_round_trip() {
+        let mut store = Store::default();
+        store.remember_identity(
+            "USB\\a",
+            seen("esp32-s3-abc"),
+            "2026-09-18 10:22:31".to_owned(),
+        );
+
+        let path = temp("remembered.json");
+        save(&path, &store).unwrap();
+        let Loaded::Ok(read) = load(&path) else {
+            panic!("what was just written should read back");
+        };
+
+        let entry = read.last_seen("USB\\a").unwrap();
+        assert_eq!(
+            entry.identity.as_ref().unwrap().identity_key,
+            "esp32-s3-abc"
+        );
+        assert_eq!(entry.identified_at.as_deref(), Some("2026-09-18 10:22:31"));
+    }
+
+    #[test]
+    fn a_file_without_the_field_still_reads() {
+        // Written before anything was remembered. The settings are the point of
+        // the file, and an older one must not be refused over an addition.
+        let path = temp("no-last-seen.json");
+        fs::write(
+            &path,
+            r#"{"schema_version": 1, "settings": {"auto_identify": false}}"#,
+        )
+        .unwrap();
+
+        let Loaded::Ok(store) = load(&path) else {
+            panic!("a file written before this field should still read");
+        };
+        assert!(store.last_seen.is_empty());
+    }
+
+    #[test]
+    fn the_least_recently_seen_is_dropped_first() {
+        let mut store = Store::default();
+        for n in 0..LAST_SEEN_LIMIT + 10 {
+            store.remember_name(&format!("USB\\{n}"), "CH340");
+        }
+        assert_eq!(store.last_seen.len(), LAST_SEEN_LIMIT);
+        assert!(
+            store.last_seen("USB\\0").is_none(),
+            "the oldest should have gone"
+        );
+        assert!(
+            store
+                .last_seen(&format!("USB\\{}", LAST_SEEN_LIMIT + 9))
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn seeing_a_device_again_moves_it_out_of_the_firing_line() {
+        let mut store = Store::default();
+        store.remember_name("USB\\old", "CH340");
+        for n in 0..LAST_SEEN_LIMIT - 1 {
+            store.remember_name(&format!("USB\\{n}"), "CH340");
+        }
+        // Still plugged in, so still worth remembering: touching it moves it to
+        // the recent end and the next arrival evicts something else.
+        store.remember_name("USB\\old", "CH340 (COM9)");
+        store.remember_name("USB\\new", "CH343");
+
+        assert_eq!(store.last_seen.len(), LAST_SEEN_LIMIT);
+        assert!(store.last_seen("USB\\old").is_some());
+        assert!(store.last_seen("USB\\0").is_none());
+    }
+
+    #[test]
+    fn clearing_leaves_the_settings_alone() {
+        let mut store = Store::default();
+        store.settings.auto_attach = true;
+        store.remember_name("USB\\a", "CH340");
+
+        assert_eq!(store.forget_everything_seen(), 1);
+        assert!(store.last_seen.is_empty());
+        assert!(store.settings.auto_attach);
     }
 }

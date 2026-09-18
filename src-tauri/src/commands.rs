@@ -18,7 +18,7 @@ use wuim_probe::TargetIdentity;
 use crate::logging;
 use crate::state;
 use crate::tray::{self, TrayView};
-use crate::view::{DeviceView, Identity, SettingsView};
+use crate::view::{DeviceView, Identity, LastKnown, SettingsView};
 
 /// anyhow's chain, flattened for the frontend and written to the log on the way
 /// past. Tauri needs a `Serialize` error and `{:#}` keeps the causes that make a
@@ -168,6 +168,7 @@ fn to_views(snapshot: &Snapshot) -> Vec<DeviceView> {
         .map(|row| row.instance_id.raw.clone())
         .collect();
     state::forget_absent(&present);
+    remember_names(snapshot);
 
     snapshot
         .devices
@@ -176,9 +177,31 @@ fn to_views(snapshot: &Snapshot) -> Vec<DeviceView> {
             let identity = state::identity(&row.instance_id.raw)
                 .as_ref()
                 .map(Identity::from);
-            DeviceView::from_row(row, ids, identity, &rules)
+            let last = state::last_seen(&row.instance_id.raw)
+                .as_ref()
+                .map(LastKnown::from)
+                .unwrap_or_default();
+            DeviceView::from_row(row, ids, identity, last, &rules)
         })
         .collect()
+}
+
+/// Records the name of every device Windows can currently describe.
+///
+/// Once a device is attached the only name left is the description `usbipd`
+/// cached, and a device bound with `--force` has had its driver swapped for the
+/// stub before that cache was even taken — so neither is guaranteed to still say
+/// what the device is (finding F4). Taken before the views are built, so a row
+/// showing for the first time already has its own name recorded and does not
+/// appear to have been renamed.
+fn remember_names(snapshot: &Snapshot) {
+    let seen: Vec<(String, String)> = snapshot
+        .devices
+        .iter()
+        .filter(|row| row.windows.is_some())
+        .map(|row| (row.instance_id.raw.clone(), row.name.clone()))
+        .collect();
+    state::remember_names(&seen);
 }
 
 /// Hands the stored settings to the frontend at startup.
@@ -195,7 +218,18 @@ pub fn read_settings() -> StoredSettings {
         writable: state::is_writable(),
         path: state::path().display().to_string(),
         log_path: logging::path().display().to_string(),
+        remembered: state::remembered_count(),
     }
+}
+
+/// Drops every remembered device, returning how many there were.
+///
+/// Offered because what is remembered can be wrong without anything having gone
+/// wrong: a board moved to another port leaves its old entry behind, and after
+/// enough of that the reminders stop helping (R7.9).
+#[tauri::command]
+pub fn clear_remembered() -> usize {
+    state::forget_everything_seen()
 }
 
 #[derive(serde::Serialize)]
@@ -208,6 +242,8 @@ pub struct StoredSettings {
     /// Where the log is. A release build has no console to print it to, so this
     /// is the only way the user learns where to look (R13.8).
     pub log_path: String,
+    /// How many devices have a remembered name or identification (R4.21).
+    pub remembered: usize,
 }
 
 /// Saves the settings the user changed.

@@ -253,6 +253,38 @@ not drop the identity.
 one in the interface. A guessed identity must never be shown in the same form as
 one that was asked for and answered.
 
+**R4.21**: The last identification that succeeded is shown for reference, as the
+last one rather than the current one. It must be visually distinct from a
+confirmed identity and must not be treated as one (R4.4). The date it was read
+is shown with it.
+
+> Dropping an identity on disconnect (R4.3) is because what is on the end of the
+> cable can have changed. That is "may have changed", not "has changed". Erasing
+> what was known up to a moment ago leaves a device that was merely replugged
+> looking exactly like one that has never been identified at all; keeping it as
+> a reference answers both questions.
+>
+> The date is shown because the value outlives a restart (R4.23). "What it was"
+> is only something to go on next to "when".
+
+**R4.23**: The last identification is saved, and shown for reference after a
+restart.
+
+> A device attached to WSL cannot be probed at all (F4). Without saving it, a
+> machine that starts with its boards already forwarded can never say which is
+> which — the answer would be "detach them and identify again", which is not
+> what this application is for.
+
+**R4.22**: The last identification must not be used for:
+
+- deciding an automatic attach (R4.6, §9)
+- restoring a confirmed identity — what is read back is always a reference
+
+> It is material for the person reading the list, not for the machine deciding
+> what to hand over. The instance id of a device with no serial number derives
+> from the port, so plugging a different board into the same socket leaves the
+> previous board's identification sitting there. Somewhere a person can see it
+> and say "that is not it" is a good place for it. A rule is not.
 ### 4.3 When a probe may run
 
 A probe has side effects. `esptool` and its kin restart the board, and attaching
@@ -546,10 +578,14 @@ information on the Windows side. It is for display only.
 
 ### 7.1 What is saved
 
-**Only what the user decided.** What the application observed — the enumeration,
-the identifications, the usbipd state — is not saved. It can be observed again at
-the next start, and saving it turns "this is how it was last time" into "this is
-how it is".
+**Only what the user decided, and what is labelled as a reminder.** What the
+application observed — the enumeration, the identifications, the usbipd state —
+must not be saved as fact. It can be observed again at the next start, and saving
+it turns "this is how it was last time" into "this is how it is".
+
+The last identification (R4.21) is saved with that path closed off: what is read
+back is always presented as a reference, and never reaches the automatic-attach
+decision (R4.22).
 
 ```text
 Settings (application-wide)
@@ -565,6 +601,12 @@ User metadata (per target; §3.5)
   key                      the key from R7.7
   alias / memo / tags
   default_wsl_distribution
+
+Last seen (per device; reference only; R4.21 / R4.23)
+  instance_id              the device instance id it was seen on
+  name                     the name Windows had while it could see it (R10.23)
+  identity                 the last identification
+  identified_at            when that identification was read
 ```
 
 **R7.7**: The key for user metadata is the USB serial number when there is one,
@@ -584,9 +626,21 @@ with the port. The interface shows that difference (R4.4).
 - usbipd's `PersistedGuid` — an identifier internal to usbipd, which on a device
   with no serial number ends up tied to the port
 
-**R7.8**: The application identity obtained by a probe (§3.4) must not be saved.
-An identity is held only while the application runs, and dropped on disconnect
-(R4.2 / R4.3).
+**R7.8**: The application identity obtained by a probe (§3.4) must not be saved
+**as fact**. A confirmed identity is held only while the application runs, and
+dropped on disconnect (R4.2 / R4.3). What may be saved is the last identification
+as a reference (R4.21 / R4.23), and what is read back must never be promoted to a
+confirmed identity (R4.22).
+
+**R7.9**: What is saved for reference has a limit on how many devices it covers;
+past that, the least recently seen goes first. The user must be able to clear all
+of it.
+
+> Boards travel between ports faster than they multiply. Without a limit, every
+> socket a device was ever plugged into earns a permanent entry. Clearing is
+> offered because this is the one part of the file that can be wrong **without
+> anything having gone wrong**: move a board to another port and its old entry
+> stays behind.
 
 ### 7.3 Where it is saved
 
@@ -783,6 +837,17 @@ and USB report stays as it is, and the identification goes in its own column.
 > With the name rewritten, there is no telling which Windows device the row is,
 > and it can no longer be lined up against `usbipd` or USBTreeView.
 
+**R10.23**: Where Windows can no longer describe a device, the name it last
+reported is shown for reference. It must be visually distinct from a confirmed
+value, and shown beside the current name rather than in place of it (R10.7).
+
+> A device attached to WSL is re-enumerated as the VBoxUSB stub, so the name
+> Windows had for it is gone (F4); a bind with `--force` does the same. What
+> stands in is the description `usbipd` cached, and if that cache was taken
+> after the driver was swapped it is a generic name too. A row that stops saying
+> which unit it is the moment it is shared is the state this application exists
+> to prevent.
+
 ### 10.2 The detail pane
 
 The four groups of §3.2 to §3.5 are shown apart from one another.
@@ -815,6 +880,7 @@ same place as the path to the log.
 
 ### 10.3 The settings screen
 
+- How many devices are remembered, and clearing them (R7.9)
 - Automatic identification on arrival and its exclusion list (§4.4)
 - Whether the side effects are confirmed before identifying (§4.3)
 - Starting when the user signs in to Windows

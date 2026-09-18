@@ -20,6 +20,9 @@
     graceSeconds: number;
     /** False when the stored file was refused; nothing is being saved. */
     writable: boolean;
+    /** How many devices have a remembered name or identification (R4.21). */
+    remembered: number;
+    onforget: () => void;
     onchange: (next: {
       enabled: boolean;
       excludeList: string;
@@ -40,6 +43,8 @@
     startWithWindows,
     graceSeconds,
     writable,
+    remembered,
+    onforget,
     onchange,
     onclose,
   }: Props = $props();
@@ -106,6 +111,19 @@
   {#if !writable}
     <p class="note warn">{t("settings.unsaved")}</p>
   {/if}
+
+  <h3>{t("settings.remembered")}</h3>
+  <!-- The one part of the file that can be wrong without anything having gone
+       wrong: a board moved to another port leaves its old entry behind (R7.9). -->
+  <div class="file">
+    <div class="file-text">
+      <span>{t("settings.remembered.count", { count: remembered })}</span>
+      <span class="note">{t("settings.remembered.note")}</span>
+    </div>
+    <button disabled={remembered === 0} onclick={onforget}>
+      {t("settings.remembered.forget")}
+    </button>
+  </div>
 
   <h3>{t("settings.about")}</h3>
   <!-- Next to the log, because a problem report needs both and this is where

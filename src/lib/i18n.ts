@@ -30,6 +30,8 @@ const en = {
   "col.state": "State",
   "col.connection": "Connection",
   "col.device": "Device",
+  "name.last.hint":
+    "The name Windows reported before this device was handed over. While it is shared the device is re-enumerated as the forwarding stub, so the name it had is no longer readable.",
   "col.vidpid": "VID:PID",
   "col.transport": "USB serial number",
   "col.target": "Board",
@@ -46,6 +48,10 @@ const en = {
     "This adapter reports no serial number, so its own identity rests on which port it is in.",
 
   "target.hint": "Read from the board itself, so it follows the board between adapters and ports.",
+  "target.last.hint":
+    "Last identified {at}. Not a current answer: the board may have been swapped since, so it counts as a reminder and nothing more.",
+  "target.last.identify.hint":
+    "Last identified {at}. Click to check whether it is still that board. The board restarts.",
   "target.unidentified": "not identified",
   "target.unidentified.hint": "Click to identify. The board restarts.",
   "target.identifying": "identifying…",
@@ -117,6 +123,11 @@ const en = {
   "usbipd.old.what":
     "Found {version}. The state it reports may be shaped differently, so some devices can read wrongly. Updating usbipd-win is the fix.",
 
+  "settings.remembered": "Remembered devices",
+  "settings.remembered.count": "{count} remembered",
+  "settings.remembered.note":
+    "The name and identification each device last had, shown greyed where there is no current answer. Never used to decide an automatic attach.",
+  "settings.remembered.forget": "Forget all",
   "settings.about": "This build",
   "settings.files": "Files",
   "settings.log": "Log",
@@ -171,6 +182,7 @@ const en = {
   "detail.from_usb_ids": "From the USB ID Repository (usb.ids), which does not list every vendor.",
   "detail.transport": "USB serial number",
   "detail.target": "Board",
+  "detail.target.last": "last identified {at} — not confirmed now",
   "detail.target.unknown": "Not identified yet. Identifying reads the board's own ID.",
   "detail.target.transport_only": "Identified down to the USB side only.",
 
@@ -245,6 +257,8 @@ const ja: Record<Key, string> = {
   "col.state": "状態",
   "col.connection": "接続",
   "col.device": "デバイス",
+  "name.last.hint":
+    "共有される前に Windows が報告していた名前です。共有中のデバイスは転送用スタブとして再列挙されるため、元の名前は読み取れません。",
   "col.vidpid": "VID:PID",
   "col.transport": "USB シリアル番号",
   "col.target": "ボード",
@@ -261,6 +275,10 @@ const ja: Record<Key, string> = {
     "このアダプタはシリアル番号を申告しないため、アダプタ自身もポート位置でしか特定できません。",
 
   "target.hint": "ボード自身から読み出した識別子です。アダプタやポートを変えても追随します。",
+  "target.last.hint":
+    "{at} に識別した内容です。現在の確定情報ではありません。以降にボードが差し替わっている可能性があるため、目安として扱ってください。",
+  "target.last.identify.hint":
+    "{at} に識別した内容です。クリックすると同じボードかどうかを確認します。ボードが再起動します。",
   "target.unidentified": "未識別",
   "target.unidentified.hint": "クリックすると識別します。ボードが再起動します。",
   "target.identifying": "識別中…",
@@ -331,6 +349,11 @@ const ja: Record<Key, string> = {
   "usbipd.old.what":
     "検出したのは {version} です。state の構造が異なる可能性があり、一部のデバイスが正しく読めないことがあります。usbipd-win の更新で解決します。",
 
+  "settings.remembered": "記憶しているデバイス",
+  "settings.remembered.count": "{count} 件",
+  "settings.remembered.note":
+    "各デバイスが最後に持っていた名前と識別結果です。確定情報が無いときにグレーで表示します。自動 Attach の判定には使いません。",
+  "settings.remembered.forget": "すべて消去",
   "settings.about": "このビルド",
   "settings.files": "ファイル",
   "settings.log": "ログ",
@@ -385,6 +408,7 @@ const ja: Record<Key, string> = {
   "detail.from_usb_ids": "USB ID Repository（usb.ids）の記載です。全ベンダーが登録しているわけではありません。",
   "detail.transport": "USB シリアル番号",
   "detail.target": "ボード",
+  "detail.target.last": "最終識別 {at} — 現在の確定情報ではありません",
   "detail.target.unknown": "未識別。識別するとボード自身の ID が判ります。",
   "detail.target.transport_only": "USB 側までの識別に留まります。",
 

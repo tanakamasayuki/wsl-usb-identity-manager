@@ -78,8 +78,12 @@ one" is not done either.
 "not identified" on screen, one press settles it when it matters (identify-all,
 R4.19).
 
-What follows from this is that **the only things saved are the ones the user
-decided** (requirements §7.1). Everything observed is observed again.
+What follows from this is that **nothing observed is saved as fact**
+(requirements §7.1). Every confirmed value is observed again.
+
+What is saved is what the user decided, and what the screen marks as a reminder
+(R4.21). The judgement above — never show the wrong name confidently — is met by
+putting the confidence into the display, not by withholding the value.
 
 ---
 
@@ -118,15 +122,21 @@ moments in §6.
 
 An identity is held **only while its device stays plugged in** (R4.3).
 
-| Event | The identity | Why |
-| --- | --- | --- |
-| Attach to / detach from WSL | **kept** | what is on the end of the cable has not changed |
-| The application restarts | gone | nothing is saved |
-| **Physically unplugged** | **dropped** | the one moment the far end can change |
+| Event | The confirmed identity | The reminder | Why |
+| --- | --- | --- | --- |
+| Attach to / detach from WSL | **kept** | kept | what is on the end of the cable has not changed |
+| The application restarts | gone | **kept** | a confirmed identity is not saved (R7.8) |
+| **Physically unplugged** | **dropped** | kept | the one moment the far end can change |
 
 Unplugging is the only moment at which the far end of the cable can be swapped
-leaving no trace on the USB side. Carrying an identity across it would turn it
-into **a guess wearing the clothes of a fact**.
+leaving no trace on the USB side. Carrying an identity across it **as a fact**
+would turn it into **a guess wearing the clothes of a fact**.
+
+The reminder (the last identification, R4.21) survives because it is not wearing
+those clothes: it is greyed, dated, and shown apart from a confirmed value. It
+has to survive a restart because an attached device cannot be probed at all (F4),
+so without it a machine that starts with its boards already forwarded can answer
+nothing (R4.23). It is never used to decide an automatic attach (R4.22).
 
 The interface distinguishes identified from not identified (R4.4). "Not
 identified" means "not asked", not "unknown device".
