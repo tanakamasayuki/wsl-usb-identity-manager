@@ -44,6 +44,82 @@ Tauri は無ければ `Cargo.toml` のバージョンを使うので、上げる
 **コード署名はしていない。** ダウンロードの実績が積み上がるまで、
 初回起動時に Windows SmartScreen の警告が出る。
 
+## 手元でビルドする
+
+リリースと同じものをローカルで作れる。リリース前の確認や、
+Actions を通さずに配りたいときはこちら。
+
+### 必要なもの
+
+| | 版 | 備考 |
+| --- | --- | --- |
+| Rust | stable（1.98 以上） | ルート `Cargo.toml` の `rust-version`。edition 2024 |
+| Node.js | 22 | CI と同じ |
+| Visual Studio Build Tools | — | 「C++ によるデスクトップ開発」。MSVC ツールチェインが使う |
+| WebView2 ランタイム | — | Windows 11 は同梱済み |
+
+Windows 専用である。デバイス列挙も usbipd の呼び出しも昇格の経路も
+他の OS に相当物が無いため、CI も `windows-latest` だけで回している。
+
+### ビルド
+
+```console
+npm ci
+npx tauri build
+```
+
+`tauri build` は先に `npm run build`（`svelte-check` + Vite の本番バンドル）を
+走らせてから Rust を release プロファイルでビルドし、NSIS インストーラまで作る。
+フロントエンドだけを直したときも、この 1 コマンドでよい。
+
+`npm ci` が要るのは依存を入れ直すときだけである。
+`node_modules` を丸ごと作り直すため、**`tauri dev` や `tauri build` が
+動いている間は実行できない**。`npx tauri` はネイティブモジュールを
+読み込んだままなので、それを消せずに落ちる。
+
+```text
+npm error code EPERM
+npm error syscall unlink
+npm error path ...\node_modules\@tauri-apps\cli-win32-x64-msvc\cli.win32-x64-msvc.node
+```
+
+先にそちらを終わらせてから実行する。
+
+| 成果物 | 場所 |
+| --- | --- |
+| 実行ファイル | `target/release/wsl-usb-identity-manager.exe` |
+| インストーラ | `target/release/bundle/nsis/WSL USB Identity Manager_<version>_x64-setup.exe` |
+
+Release ページのファイル名と違うのは、Tauri が `productName` で命名するためである。
+空白は GitHub が添付時に `.` へ変えてしまうので、ワークフロー側で
+`wsl-usb-identity-manager_<version>_x64_setup.exe` に改名している。
+
+ポータブル ZIP はワークフローが組み立てるもので、`tauri build` は作らない。
+実行ファイルの隣に `portable.txt` を置けば同じ挙動になる（R7.2）。
+
+**`アクセスが拒否されました (os error 5)`** で失敗したら、
+ビルドしたアプリがまだ動いている。ウィンドウを閉じるだけでは終了しないので、
+トレイアイコンから終了してから実行し直す。
+
+### 開発中に動かす
+
+```console
+npx tauri dev
+```
+
+### コミット前に通すもの
+
+```console
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+npm run check
+```
+
+CI（`.github/workflows/ci.yml`）がこれと同じものを走らせる。
+CI は `tauri build` までは行わない。パッケージングに 7 分ほどかかる割に
+壊れることが稀で、壊れたときもリリースワークフローの再実行 1 回で済むためである。
+
 ## WinGet
 
 ### 初回だけは手動で提出する

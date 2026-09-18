@@ -145,7 +145,7 @@ Every document is kept in English and Japanese, linked to each other at the top.
 - [Requirements](docs/requirements.md)
 - [Measured facts](docs/research-findings.md) — the measurements this design rests on
 - [Identification policy](docs/identification-policy.md)
-- [Release procedure](docs/release.md)
+- [Release procedure](docs/release.md) — and how to build it yourself
 
 ## Related projects
 

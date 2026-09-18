@@ -44,6 +44,84 @@ beside the executable rather than under `%APPDATA%` and `%LOCALAPPDATA%`.
 Builds are **not code-signed**. Windows SmartScreen will warn on first run until
 the download builds a reputation.
 
+## Building it yourself
+
+The same thing the release builds can be built locally — to check a change
+before releasing it, or to hand someone a build without going through Actions.
+
+### What you need
+
+| | Version | Notes |
+| --- | --- | --- |
+| Rust | stable (1.98 or later) | `rust-version` in the root `Cargo.toml`; edition 2024 |
+| Node.js | 22 | the same as CI |
+| Visual Studio Build Tools | — | "Desktop development with C++", for the MSVC toolchain |
+| WebView2 runtime | — | already present on Windows 11 |
+
+Windows only. Device enumeration, the usbipd calls and the elevation path have no
+counterpart anywhere else, which is why CI runs on `windows-latest` and nothing
+else.
+
+### Build
+
+```console
+npm ci
+npx tauri build
+```
+
+`tauri build` runs `npm run build` first (`svelte-check` and the Vite production
+bundle), then builds the Rust side in the release profile and packages the NSIS
+installer. One command covers a frontend-only change too.
+
+`npm ci` is only needed when the dependencies change. It rebuilds `node_modules`
+from scratch, so **it cannot run while `tauri dev` or `tauri build` is running**:
+`npx tauri` holds its native module open, and `npm ci` cannot delete it.
+
+```text
+npm error code EPERM
+npm error syscall unlink
+npm error path ...\node_modules\@tauri-apps\cli-win32-x64-msvc\cli.win32-x64-msvc.node
+```
+
+Let the build finish first.
+
+| Artefact | Where |
+| --- | --- |
+| Executable | `target/release/wsl-usb-identity-manager.exe` |
+| Installer | `target/release/bundle/nsis/WSL USB Identity Manager_<version>_x64-setup.exe` |
+
+The name differs from the one on the release page because Tauri names the bundle
+after `productName`. GitHub turns the spaces into dots when a file is attached to
+a release, so the workflow renames it to
+`wsl-usb-identity-manager_<version>_x64_setup.exe`.
+
+The portable ZIP is assembled by the workflow; `tauri build` does not produce
+one. Putting `portable.txt` beside the executable gives the same behaviour
+(R7.2).
+
+A build that fails with **`os error 5` (access denied)** means the application it
+is trying to overwrite is still running. Closing the window does not quit it —
+quit from the tray icon and run the build again.
+
+### Running it while working on it
+
+```console
+npx tauri dev
+```
+
+### What to run before committing
+
+```console
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+npm run check
+```
+
+CI (`.github/workflows/ci.yml`) runs the same set. It stops short of
+`tauri build`: packaging takes about seven minutes and rarely breaks, and when it
+does the cost is one re-run of the release workflow rather than a broken release.
+
 ## WinGet
 
 ### The first version has to be submitted by hand

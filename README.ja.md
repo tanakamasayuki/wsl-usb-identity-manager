@@ -140,7 +140,7 @@ CH340 の先の基板が、抜かれている間に載せ替えられたかど�
 - [要件定義](docs/requirements.ja.md)
 - [実測で確認した事実](docs/research-findings.ja.md) — 本設計の根拠となる測定値
 - [識別ポリシー](docs/identification-policy.ja.md)
-- [リリース手順](docs/release.ja.md)
+- [リリース手順](docs/release.ja.md) — 手元でのビルド方法も
 
 ## 関連プロジェクト
 
