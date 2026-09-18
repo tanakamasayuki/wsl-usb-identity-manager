@@ -134,7 +134,8 @@ const en = {
   "settings.settings_file": "Settings",
   "settings.open_folder": "Open folder",
 
-  "settings.title": "Automatic identification",
+  "settings.title": "Settings",
+  "settings.behaviour": "Identification and startup",
   "settings.auto.label": "Identify a device right after it is plugged in",
   "settings.auto.note":
     "A probe restarts the board, so this only runs in the {seconds} seconds after a device arrives, when nothing is using it yet — never at startup, and never on a timer.",
@@ -360,7 +361,8 @@ const ja: Record<Key, string> = {
   "settings.settings_file": "設定",
   "settings.open_folder": "フォルダを開く",
 
-  "settings.title": "自動識別",
+  "settings.title": "設定",
+  "settings.behaviour": "識別と起動",
   "settings.auto.label": "接続された直後に自動で識別する",
   "settings.auto.note":
     "識別はボードを再起動させるため、接続イベントから {seconds} 秒以内、まだ誰も使っていないタイミングに限って実行します。起動時や定期実行では行いません。",

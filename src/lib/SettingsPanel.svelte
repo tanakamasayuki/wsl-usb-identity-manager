@@ -67,86 +67,99 @@
 <div class="panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
   <h2 id="settings-title">{t("settings.title")}</h2>
 
-  <label class="row">
-    <input
-      type="checkbox"
-      checked={enabled}
-      onchange={(e) => change({ enabled: e.currentTarget.checked })}
-    />
-    <span>{t("settings.auto.label")}</span>
-  </label>
-  <p class="note">{t("settings.auto.note", { seconds: graceSeconds })}</p>
+  <!-- Two columns: what the user changes on the left, what they look up on the
+       right. In one column the panel grew taller than the window, and a
+       settings dialog that scrolls hides the thing someone opened it for. -->
+  <div class="columns">
+    <section>
+      <h3>{t("settings.behaviour")}</h3>
 
-  <label class="field">
-    <span>{t("settings.exclude.label")}</span>
-    <input
-      type="text"
-      value={excludeList}
-      placeholder={t("settings.exclude.placeholder")}
-      oninput={(e) => change({ excludeList: e.currentTarget.value })}
-    />
-  </label>
-  <p class="note">{t("settings.exclude.note")}</p>
+      <label class="row">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onchange={(e) => change({ enabled: e.currentTarget.checked })}
+        />
+        <span>{t("settings.auto.label")}</span>
+      </label>
+      <p class="note">{t("settings.auto.note", { seconds: graceSeconds })}</p>
 
-  <label class="row spaced">
-    <input
-      type="checkbox"
-      checked={confirmBeforeIdentify}
-      onchange={(e) => change({ confirmBeforeIdentify: e.currentTarget.checked })}
-    />
-    <span>{t("settings.confirm.label")}</span>
-  </label>
-  <p class="note">{t("settings.confirm.note")}</p>
+      <label class="field">
+        <span>{t("settings.exclude.label")}</span>
+        <input
+          type="text"
+          value={excludeList}
+          placeholder={t("settings.exclude.placeholder")}
+          oninput={(e) => change({ excludeList: e.currentTarget.value })}
+        />
+      </label>
+      <p class="note">{t("settings.exclude.note")}</p>
 
-  <label class="row spaced">
-    <input
-      type="checkbox"
-      checked={startWithWindows}
-      onchange={(e) => change({ startWithWindows: e.currentTarget.checked })}
-    />
-    <span>{t("settings.startup.label")}</span>
-  </label>
-  <p class="note">{t("settings.startup.note")}</p>
+      <label class="row spaced">
+        <input
+          type="checkbox"
+          checked={confirmBeforeIdentify}
+          onchange={(e) => change({ confirmBeforeIdentify: e.currentTarget.checked })}
+        />
+        <span>{t("settings.confirm.label")}</span>
+      </label>
+      <p class="note">{t("settings.confirm.note")}</p>
 
-  {#if !writable}
-    <p class="note warn">{t("settings.unsaved")}</p>
-  {/if}
+      <label class="row spaced">
+        <input
+          type="checkbox"
+          checked={startWithWindows}
+          onchange={(e) => change({ startWithWindows: e.currentTarget.checked })}
+        />
+        <span>{t("settings.startup.label")}</span>
+      </label>
+      <p class="note">{t("settings.startup.note")}</p>
 
-  <h3>{t("settings.remembered")}</h3>
-  <!-- The one part of the file that can be wrong without anything having gone
-       wrong: a board moved to another port leaves its old entry behind (R7.9). -->
-  <div class="file">
-    <div class="file-text">
-      <span>{t("settings.remembered.count", { count: remembered })}</span>
-      <span class="note">{t("settings.remembered.note")}</span>
-    </div>
-    <button disabled={remembered === 0} onclick={onforget}>
-      {t("settings.remembered.forget")}
-    </button>
-  </div>
+      {#if !writable}
+        <p class="note warn">{t("settings.unsaved")}</p>
+      {/if}
+    </section>
 
-  <h3>{t("settings.about")}</h3>
-  <!-- Next to the log, because a problem report needs both and this is where
-       someone goes looking for the log. -->
-  <p class="version"><code>{t("app.name")} {version}</code></p>
+    <section>
+      <h3>{t("settings.remembered")}</h3>
+      <!-- The one part of the file that can be wrong without anything having gone
+           wrong: a board moved to another port leaves its old entry behind (R7.9). -->
+      <div class="file">
+        <div class="file-text">
+          <span>{t("settings.remembered.count", { count: remembered })}</span>
+        </div>
+        <button disabled={remembered === 0} onclick={onforget}>
+          {t("settings.remembered.forget")}
+        </button>
+      </div>
+      <!-- Below the row rather than beside the button: squeezed into half a
+           column it wrapped to four lines and set the section's height. -->
+      <p class="note">{t("settings.remembered.note")}</p>
 
-  <h3>{t("settings.files")}</h3>
-  <!-- The log records every usbipd command and every probe, and is the first
-       thing to look at when something goes wrong. A release build has no
-       console, so this is the only place its path appears (R13.8). -->
-  <div class="file">
-    <div class="file-text">
-      <span>{t("settings.log")}</span>
-      <code>{logPath}</code>
-    </div>
-    <button onclick={() => onopen("log_folder")}>{t("settings.open_folder")}</button>
-  </div>
-  <div class="file">
-    <div class="file-text">
-      <span>{t("settings.settings_file")}</span>
-      <code>{settingsPath}</code>
-    </div>
-    <button onclick={() => onopen("settings_folder")}>{t("settings.open_folder")}</button>
+      <h3>{t("settings.about")}</h3>
+      <!-- Next to the log, because a problem report needs both and this is where
+           someone goes looking for the log. -->
+      <p class="version"><code>{t("app.name")} {version}</code></p>
+
+      <h3>{t("settings.files")}</h3>
+      <!-- The log records every usbipd command and every probe, and is the first
+           thing to look at when something goes wrong. A release build has no
+           console, so this is the only place its path appears (R13.8). -->
+      <div class="file">
+        <div class="file-text">
+          <span>{t("settings.log")}</span>
+          <code>{logPath}</code>
+        </div>
+        <button onclick={() => onopen("log_folder")}>{t("settings.open_folder")}</button>
+      </div>
+      <div class="file">
+        <div class="file-text">
+          <span>{t("settings.settings_file")}</span>
+          <code>{settingsPath}</code>
+        </div>
+        <button onclick={() => onopen("settings_folder")}>{t("settings.open_folder")}</button>
+      </div>
+    </section>
   </div>
 
   <div class="actions">
@@ -166,7 +179,7 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: min(520px, calc(100vw - 32px));
+    width: min(860px, calc(100vw - 32px));
     max-height: calc(100vh - 48px);
     overflow-y: auto;
     background: var(--bg-header);
@@ -179,6 +192,26 @@
   h2 {
     margin: 0 0 16px;
     font-size: 15px;
+  }
+
+  .columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 32px;
+    align-items: start;
+  }
+
+  /* Both columns start level, whatever each one happens to begin with. */
+  .columns > section > :first-child {
+    margin-top: 0;
+  }
+
+  /* Narrower than two columns can hold. The window cannot be made this small,
+     but nothing here depends on that staying true. */
+  @media (max-width: 720px) {
+    .columns {
+      grid-template-columns: 1fr;
+    }
   }
 
   .row {
