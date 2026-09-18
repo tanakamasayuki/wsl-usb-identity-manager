@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from "./i18n";
-  import type { DeviceView } from "./types";
+  import type { DeviceView, Identity } from "./types";
 
   interface Props {
     devices: DeviceView[];
@@ -53,6 +53,16 @@
    */
   function lastHint(device: DeviceView, key: string): string {
     return t(key, { at: device.lastIdentifiedAt ?? "—" });
+  }
+
+  /**
+   * Why the board column says what it says.
+   *
+   * Worth distinguishing because the two answers cost different things: a
+   * silicon read restarted the board, a descriptor read sent it nothing at all.
+   */
+  function targetHint(identity: Identity): string {
+    return identity.idSource === "usb-serial" ? t("target.hint.usb_serial") : t("target.hint");
   }
 
   /** Whether a probe could answer for this device, so the cell offers one. */
@@ -127,7 +137,7 @@
           </td>
           <td class="target">
             {#if identity}
-              <span class="id known" title={t("target.hint")}>{identity.identityKey}</span>
+              <span class="id known" title={targetHint(identity)}>{identity.identityKey}</span>
             {:else if probing.has(device.instanceId)}
               <span class="id pending">{t("target.identifying")}</span>
             {:else if device.lastIdentity && identifiable(device)}

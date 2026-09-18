@@ -15,9 +15,9 @@ serde.workspace = true
 # The WCH-Link protocol, its USB transport and the CH32 device database. The
 # transport tries nusb first and falls back to WCH's own Windows driver, so a
 # probe on the stock driver needs no WinUSB replacement.
-ch32rv-wchlink = "0.7"
-ch32rv-usb = "0.7"
-ch32rv-target = "0.7"
+ch32rv-wchlink = "0.8"
+ch32rv-usb = "0.8"
+ch32rv-target = "0.8"
 
 espflash = { version = "4.6", default-features = false, features = ["serialport"] }
 # The usbportinfo-* features are enabled so `UsbPortInfo` has a fixed set of

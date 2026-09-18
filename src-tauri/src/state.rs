@@ -116,6 +116,7 @@ pub fn remember_identity(instance_id: String, identity: TargetIdentity) {
         device_type: identity.device_type.clone(),
         device_id: identity.device_id.clone(),
         hardware_revision: identity.hardware_revision.clone(),
+        id_source: Some(identity.id_source.to_owned()),
     };
     held()
         .lock()

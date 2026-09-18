@@ -101,6 +101,12 @@ export interface Identity {
   deviceType: string;
   deviceId: string;
   hardwareRevision: string | null;
+  /**
+   * How the unit was pinned down: `target-mac` and `target-cpu-id` were read
+   * from the silicon, `usb-serial` from the board's own USB descriptors. The
+   * vocabulary is board-identify's. Shown, never branched on for behaviour.
+   */
+  idSource?: string;
 }
 
 export interface Settings {

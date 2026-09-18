@@ -124,6 +124,7 @@ impl From<&store::SeenIdentity> for Identity {
             device_type: seen.device_type.clone(),
             device_id: seen.device_id.clone(),
             hardware_revision: seen.hardware_revision.clone(),
+            id_source: seen.id_source.clone(),
         }
     }
 }
@@ -206,6 +207,10 @@ pub struct Identity {
     pub device_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hardware_revision: Option<String>,
+    /// How the unit was pinned down: read from the silicon, or read from the
+    /// board's own USB descriptors. Shown, never branched on.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id_source: Option<String>,
 }
 
 impl From<&TargetIdentity> for Identity {
@@ -215,6 +220,7 @@ impl From<&TargetIdentity> for Identity {
             device_type: identity.device_type.clone(),
             device_id: identity.device_id.clone(),
             hardware_revision: identity.hardware_revision.clone(),
+            id_source: Some(identity.id_source.to_owned()),
         }
     }
 }
@@ -454,6 +460,7 @@ mod tests {
             device_type: "esp32-s3".to_owned(),
             device_id: key.to_owned(),
             hardware_revision: None,
+            id_source: Some("target-mac".to_owned()),
         }
     }
 

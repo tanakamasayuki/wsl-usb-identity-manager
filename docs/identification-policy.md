@@ -87,7 +87,7 @@ putting the confidence into the display, not by withholding the value.
 
 ---
 
-## 3. The two routes to an identity
+## 3. The three routes to an identity
 
 ### Route 1: the USB serial number identifies the transport (no probe)
 
@@ -111,10 +111,30 @@ adapter or the probe itself**. It says nothing about the board behind it
 → **A serial number is shown as the transport's identifier and never treated as
 the target's** (R4.1).
 
+### Route 3: VID:PID and the serial number identify the target (no probe)
+
+Route 1 stops at the transport because **there is no telling whose serial number
+it is**. Once the VID:PID is known to be the board's own, that stops being true.
+
+```text
+USB\VID_2341&PID_0069\34B7DA65B1C8   Arduino UNO R4 Minima
+USB\VID_1A86&PID_7523\(no serial)    a CH340 — a cable, with no telling what is on the end
+```
+
+The table it is decided against is taken from board-identify (R4.24). **Stock
+bridge IDs are always refused** (R4.25): a CH340 or CP2102 pair names the cable,
+and so does the serial number that comes with it.
+
+This route sends the device nothing, so it is not subject to the triggers in §6.
+It is evaluated for every device on every refresh.
+
 ### Route 2: a probe identifies the target (side effects)
 
 The only way to learn what is behind an adapter or a probe. It runs only at the
 moments in §6.
+
+Where routes 2 and 3 could both answer, route 2 wins (R4.26): a value read from
+the silicon outlives a reflash that rewrites the descriptors.
 
 ---
 

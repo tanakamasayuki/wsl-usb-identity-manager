@@ -20,7 +20,7 @@ use ch32rv_wchlink::{ChipInfo, ChipInfoStatus, Speed, WchLink};
 use wuim_core::windevice::WinUsbDevice;
 
 use crate::identity::identity_key;
-use crate::{Applicability, Note, Recognition, TargetIdentity, TargetProbe};
+use crate::{Applicability, Note, Recognition, TargetIdentity, TargetProbe, id_sources};
 
 /// WCH's vendor id, and the product id a WCH-Link reports in RISC-V mode.
 const VID_WCH: u16 = 0x1a86;
@@ -167,8 +167,11 @@ fn build_identity(
     let uuid: String = chip.uuid.iter().map(|b| format!("{b:02x}")).collect();
 
     let db = Db::builtin();
-    // The top nibble of the chip id is the silicon revision, which the database
-    // masks off before matching.
+    // Bits 4..7 of the chip id are the silicon revision. The database masks them
+    // off before matching (`DEVICE_ID_MASK = 0xFFFF_FF0F`) and stores every SKU
+    // with them zeroed, which is what makes them the revision and the rest the
+    // part: the top nibble, which might read like one, varies between families
+    // rather than between revisions of a part.
     let device_type = match db.resolve_by_chip_id(chip_id) {
         // The database also carries a family, but it groups parts more broadly
         // than their name suggests - a CH32V305 sits under a CH32V307 family -
@@ -192,8 +195,9 @@ fn build_identity(
         identity_key,
         device_id: uuid,
         device_type,
-        // The silicon revision, from the top nibble the database ignores.
-        hardware_revision: Some(format!("rev {}", chip_id >> 28)),
+        id_source: id_sources::TARGET_CPU_ID,
+        // The revision, from the one nibble the database ignores.
+        hardware_revision: Some(format!("rev {}", (chip_id >> 4) & 0xf)),
         details,
     })
 }
@@ -247,8 +251,31 @@ mod tests {
     }
 
     #[test]
-    fn the_silicon_revision_comes_from_the_top_nibble() {
-        let identity = build_identity("ch32", "LinkE 2.12", 0x3050_0601, &chip([9; 8])).unwrap();
-        assert_eq!(identity.hardware_revision.as_deref(), Some("rev 3"));
+    fn the_silicon_revision_comes_from_the_nibble_the_database_ignores() {
+        // A real CH32V305RBT6 id is 0x3050_0508; the 2 here is a revision.
+        let identity = build_identity("ch32", "LinkE 2.12", 0x3050_0528, &chip([9; 8])).unwrap();
+        assert_eq!(identity.hardware_revision.as_deref(), Some("rev 2"));
+        assert_eq!(identity.device_type, "ch32v305rbt6");
+    }
+
+    /// The part that prompted the move to `ch32rv` 0.8.
+    ///
+    /// 0.7 had no row for this SKU, so the name came out as `ch32-00600620`,
+    /// and its `AttachChip` did not know the V00x family byte at all — the read
+    /// this builds on never got as far as returning. Pinned here because the id
+    /// was measured on the part rather than read off a datasheet.
+    #[test]
+    fn a_ch32v006_resolves_to_its_sku() {
+        let identity = build_identity(
+            "ch32",
+            "LinkE 2.12",
+            0x0060_0620,
+            &chip([0x1f, 0xf9, 0xab, 0xcd, 0x88, 0x0e, 0xbc, 0x48]),
+        )
+        .unwrap();
+
+        assert_eq!(identity.device_type, "ch32v006k8u6");
+        assert_eq!(identity.hardware_revision.as_deref(), Some("rev 2"));
+        assert_eq!(identity.identity_key, "ch32v006k8u6-1ff9abcd880ebc48");
     }
 }

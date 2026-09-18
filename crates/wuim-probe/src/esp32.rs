@@ -15,7 +15,7 @@ use serialport::{FlowControl, UsbPortInfo};
 use wuim_core::windevice::WinUsbDevice;
 
 use crate::identity::{esp_variant, identity_key};
-use crate::{Applicability, Note, Recognition, TargetIdentity, TargetProbe};
+use crate::{Applicability, Note, Recognition, TargetIdentity, TargetProbe, id_sources};
 
 /// The ROM loader answers at 115200 baud; there is no reason to go faster for a
 /// handful of register reads.
@@ -89,6 +89,7 @@ impl TargetProbe for Esp32Probe {
             hardware_revision: info
                 .revision
                 .map(|(major, minor)| format!("v{major}.{minor}")),
+            id_source: id_sources::TARGET_MAC,
             details,
         })
     }

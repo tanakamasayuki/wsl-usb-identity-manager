@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- (EN) Names a board from its USB descriptors alone, where the VID:PID is one a vendor programmed for that board and the device reports a serial number. Nothing is sent to the board, so this needs no confirmation and no grace window; it runs on every refresh, and answers for a device already attached to WSL. The table comes from board-identify, so both tools give one board one name. Stock USB-UART bridge IDs are refused: a CH340 names the cable, not what is on the end of it.
+- (JA) VID:PID がそのボードのために発行されたもので、かつシリアル番号を持つデバイスを、USB ディスクリプタだけで識別する。ボードには何も送らないため確認も猟時間も不要で、毎回の更新で評価され、WSL へ Attach 中のデバイスにも答えられる。対応表は board-identify から取り込むので、同じボードを両ツールが同じ名前で呼ぶ。素の USB-UART ブリッジの ID は拒否する——CH340 が指すのはケーブルであって、その先ではない。
+- (EN) CH32V006 can be identified. `ch32rv` 0.7 did not know the V00x line's `AttachChip` family byte, so the read never started, and its device database had no row for the CH32V006K8U6 even if it had. Both are fixed in 0.8.
+- (JA) CH32V006 を識別できるようになった。`ch32rv` 0.7 は V00x 系の `AttachChip` ファミリバイトを知らず読み出しが始まらず、デバイス DB にも CH32V006K8U6 の行が無かった。0.8 で両方解決している。
+- (EN) Fix: the CH32 silicon revision was read from the wrong nibble. It is bits 4..7 — the ones the device database masks off before matching, and stores zeroed in every SKU — not the top nibble, which varies between families rather than between revisions of a part. Display only; no identity key changes.
+- (JA) 修正: CH32 のシリコンリビジョンを誤ったニブルから読んでいた。正しくは bit 4..7——デバイス DB が照合前にマスクし、全 SKU で 0 として保持しているニブルである。上位ニブルはリビジョンではなくファミリを分ける値だった。表示のみの修正で、識別子は変わらない。
+
 ## 1.1.0 - 2026-09-18
 
 - (EN) Shows what a device was last identified as, greyed and dated, where there is no current answer, and keeps it across a restart — a device already attached to WSL cannot be probed at all, so without it a machine that starts with its boards forwarded can say nothing about them. A confirmed identity is still dropped on disconnect and still never saved as one, and the greyed value is never matched by an automatic-attach rule. In the list it doubles as the button that re-confirms it.

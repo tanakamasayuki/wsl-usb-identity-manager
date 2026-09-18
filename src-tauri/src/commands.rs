@@ -176,7 +176,18 @@ fn to_views(snapshot: &Snapshot) -> Vec<DeviceView> {
         .map(|row| {
             let identity = state::identity(&row.instance_id.raw)
                 .as_ref()
-                .map(Identity::from);
+                .map(Identity::from)
+                // Nothing probed it, but the descriptors may name it anyway.
+                // Second, not first: a probe read the silicon, which outlives a
+                // reflash changing what the descriptors say. Derived fresh each
+                // time rather than remembered, because the instance id it comes
+                // from is the key everything here is already filed under — and
+                // that survives an attach, where a probe cannot reach at all.
+                .or_else(|| {
+                    wuim_probe::usb_descriptor::identify(&row.instance_id)
+                        .as_ref()
+                        .map(Identity::from)
+                });
             let last = state::last_seen(&row.instance_id.raw)
                 .as_ref()
                 .map(LastKnown::from)

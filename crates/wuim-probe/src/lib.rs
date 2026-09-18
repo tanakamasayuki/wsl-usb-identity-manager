@@ -6,9 +6,11 @@
 //! probing lives here rather than in `wuim-core`, where the enumeration paths
 //! could reach it by accident (requirement R4.6).
 //!
-//! Everything in this crate runs only on the two triggers of requirement R4.5:
-//! an explicit request from the user, or the opt-in window right after a device
-//! is plugged in.
+//! Every *probe* here runs only on the two triggers of requirement R4.5: an
+//! explicit request from the user, or the opt-in window right after a device is
+//! plugged in. [`usb_descriptor`] is not a probe and is not subject to that: it
+//! reads what Windows already enumerated and sends nothing, so there is no cost
+//! to gate.
 //!
 //! Adding a family means adding a module and one line in [`probes`], with no
 //! change to the families already here (requirement R4.14).
@@ -19,15 +21,35 @@
 //! to be added to a list of exceptions inside the generic probe, and that list
 //! would grow for as long as families do.
 
+pub mod board_ids;
 pub mod ch32;
 pub mod esp32;
 pub mod identity;
+pub mod usb_descriptor;
 
 use std::collections::BTreeMap;
 
 use anyhow::Result;
 use serde::Serialize;
 use wuim_core::windevice::WinUsbDevice;
+
+/// Where a unique id came from.
+///
+/// The vocabulary is board-identify's, so a device identified by both tools is
+/// described the same way by both. It is shown, not acted on: the difference
+/// between reading silicon and reading a descriptor is one a person weighs, not
+/// one this application branches on.
+pub mod id_sources {
+    /// Read from the silicon — an ESP32's eFuse MAC. Survives a reflash, and a
+    /// bridge in front of it being swapped.
+    pub const TARGET_MAC: &str = "target-mac";
+    /// Read from the silicon — a CH32's factory UUID, through a debug probe.
+    pub const TARGET_CPU_ID: &str = "target-cpu-id";
+    /// The serial number in the board's own USB descriptors. Identifies the
+    /// unit only because the pair it comes with identifies the board (see
+    /// [`crate::usb_descriptor`]).
+    pub const USB_SERIAL: &str = "usb-serial";
+}
 
 /// A message this crate produces for a person to read.
 ///
@@ -120,6 +142,8 @@ pub struct TargetIdentity {
     /// The chip variant, e.g. `esp32-s3`.
     pub device_type: String,
     pub hardware_revision: Option<String>,
+    /// Where [`Self::device_id`] came from; one of [`id_sources`].
+    pub id_source: &'static str,
     /// Anything else worth showing in a detail pane. Not part of the identity.
     pub details: BTreeMap<String, String>,
 }

@@ -48,6 +48,11 @@ const en = {
     "This adapter reports no serial number, so its own identity rests on which port it is in.",
 
   "target.hint": "Read from the board itself, so it follows the board between adapters and ports.",
+  "target.hint.usb_serial":
+    "Named by the board's own USB descriptors: the VID:PID says which model, the serial number says which unit. Nothing was sent to the board.",
+  "id_source.target-mac": "read from the chip's eFuse",
+  "id_source.target-cpu-id": "read from the chip's factory UUID",
+  "id_source.usb-serial": "from the board's own USB descriptors",
   "target.last.hint":
     "Last identified {at}. Not a current answer: the board may have been swapped since, so it counts as a reminder and nothing more.",
   "target.last.identify.hint":
@@ -276,6 +281,11 @@ const ja: Record<Key, string> = {
     "このアダプタはシリアル番号を申告しないため、アダプタ自身もポート位置でしか特定できません。",
 
   "target.hint": "ボード自身から読み出した識別子です。アダプタやポートを変えても追随します。",
+  "target.hint.usb_serial":
+    "ボード自身の USB ディスクリプタによる識別です。VID:PID が機種を、シリアル番号が個体を示します。ボードには何も送っていません。",
+  "id_source.target-mac": "チップの eFuse から読み出し",
+  "id_source.target-cpu-id": "チップの工場出荷時 UUID から読み出し",
+  "id_source.usb-serial": "ボード自身の USB ディスクリプタから",
   "target.last.hint":
     "{at} に識別した内容です。現在の確定情報ではありません。以降にボードが差し替わっている可能性があるため、目安として扱ってください。",
   "target.last.identify.hint":

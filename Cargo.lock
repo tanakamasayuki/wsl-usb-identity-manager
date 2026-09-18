@@ -358,9 +358,9 @@ checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
 
 [[package]]
 name = "ch32rv-contract"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "679aa53608b0e7b7b3e13b8a5a3cf0c6355844881fa2260f30809584edd02e5f"
+checksum = "6ab21daa1eab9dc85881714404d0fe52574cacf79925acb298c95ac130caaa84"
 dependencies = [
  "serde",
  "serde_json",
@@ -368,9 +368,9 @@ dependencies = [
 
 [[package]]
 name = "ch32rv-dmi"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "633dadc1abdfe84eff4a3656bbc9ee9163e14c41cf1c1c7f292b8a4ed2031d3c"
+checksum = "bba25d92832aefb966a7ed0eca6fbf63c535083a721d2286637c0721a0efdba4"
 dependencies = [
  "ch32rv-contract",
  "thiserror 2.0.20",
@@ -378,9 +378,9 @@ dependencies = [
 
 [[package]]
 name = "ch32rv-target"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d98baf94a2182791b7f6e391688e9b944f0c4b5c70137e515330a00afed19ce7"
+checksum = "1d915354840a21e08a08e5922856dd1be9f1134b804523173a42f0db5a9ea6fa"
 dependencies = [
  "ch32rv-contract",
  "serde",
@@ -389,9 +389,9 @@ dependencies = [
 
 [[package]]
 name = "ch32rv-usb"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2538a782a046125a1162ca86a25e78767b6f4bba7b5119863592e268ea45832"
+checksum = "980fa45f258343ca523ea291144c51721364c6a5084032edb624c03f30155867"
 dependencies = [
  "ch32rv-contract",
  "ch32rv-usb-wch-win",
@@ -403,9 +403,9 @@ dependencies = [
 
 [[package]]
 name = "ch32rv-usb-wch-win"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "776329d7623aa7052520be1c8a0332713099d438c4c8c8caf42956685e7f093d"
+checksum = "1930283aa0dbdf51d2eac69bd03e5ada674555c23f7871a9a0bb769ea9e89a1d"
 dependencies = [
  "thiserror 2.0.20",
  "windows-sys 0.61.2",
@@ -413,9 +413,9 @@ dependencies = [
 
 [[package]]
 name = "ch32rv-wchlink"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e77d1f69c0c1786ac76a964987dc253e67ffee98558892a363ca03954075bef8"
+checksum = "8c2d4f78432b5555ab4dfb8df4fa861804bdae0904a15e45e38a25048c0072e9"
 dependencies = [
  "ch32rv-contract",
  "ch32rv-dmi",

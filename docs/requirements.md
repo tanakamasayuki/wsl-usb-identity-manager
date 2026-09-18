@@ -215,15 +215,51 @@ same setting across them.
 See [identification-policy.md](identification-policy.md) for the design. This
 section states the requirements only.
 
-### 4.1 The two routes
+### 4.1 The routes
 
 | # | Route | What it covers | Probe |
 | --- | --- | --- | --- |
 | 1 | the USB serial number identifies the transport | devices that report one | **not needed** |
 | 2 | a probe identifies the target | devices whose board can be asked | needed |
+| 3 | VID:PID and the USB serial number identify the target | boards with a VID:PID of their own | **not needed** |
 
 Route 1 reaches **the transport and no further**. The serial number an adapter
 or a probe reports for itself does not name the board behind it (§1.2).
+
+Route 3 differs from route 1 in one thing: where the VID:PID is known to be
+**the board's own**, that same serial number is the target's identifier. There
+is no adapter in the way, because the USB device is the board.
+
+**R4.24**: A device whose VID:PID is registered as a board's own, and which
+reports a USB serial number, is identified without a probe. This route sends the
+device nothing, so it is not subject to the triggers of §4.3 and needs no
+statement of side effects (R4.7).
+
+> The table is taken from board-identify (`scripts/generate_board_ids.py`). It
+> originates in Arduino's board definitions, which board-identify collects.
+> Nothing of ours is interposed between the two, so that **one board does not end
+> up with a different name in each tool**.
+>
+> This route's answer is not held; it is derived from the instance id whenever it
+> is wanted. The answer cannot change while what it is derived from does not, so
+> there is nothing to keep. It answers for an attached device too, because the
+> instance id outlives an attach (F4).
+
+**R4.25**: Neither of these may decide a model name.
+
+- the VID:PID of a generic USB-UART bridge
+- a VID:PID several boards report — the family is known, the model is not
+
+> A CH340 is a CH340 whether it sits on an ESP32 or is wired to a bare AVR. The
+> pair names the cable, and so does the serial number. Board definitions do claim
+> stock bridge IDs from time to time — the Sony Spresense claims the CP2102
+> `10c4:ea60` — and deleting such a row only lasts until the next import, so the
+> refusal is made at lookup time.
+
+**R4.26**: Where routes 2 and 3 could both answer, route 2 wins.
+
+> A value read from the silicon outlives a reflash that rewrites the
+> descriptors. Espressif boards are left out of the table for the same reason.
 
 **R4.1**: A device that reports a serial number must have it shown as the
 transport's identifier. It must not be treated as the target's.

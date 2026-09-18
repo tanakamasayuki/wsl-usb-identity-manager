@@ -96,6 +96,11 @@ pub struct SeenIdentity {
     pub device_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hardware_revision: Option<String>,
+    /// Where the id came from, as `wuim_probe::id_sources` spells it. Absent in
+    /// files written before it was recorded, which is why it is optional rather
+    /// than defaulted to a guess.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id_source: Option<String>,
 }
 
 /// The current time in the form [`LastSeen::identified_at`] holds.
@@ -451,6 +456,7 @@ mod tests {
             device_type: "esp32-s3".to_owned(),
             device_id: key.to_owned(),
             hardware_revision: None,
+            id_source: Some("target-mac".to_owned()),
         }
     }
 

@@ -999,6 +999,12 @@
             {#if identity}
               <code class="key">{identity.identityKey}</code>
               <span class="note">{identity.deviceType} / {identity.deviceId}</span>
+              {#if identity.idSource}
+                <!-- Whether the board was asked or merely read. The difference
+                     is what it cost to find out, which is worth stating where
+                     there is room to state it. -->
+                <span class="note">{t(`id_source.${identity.idSource}`)}</span>
+              {/if}
             {:else if selected.lastIdentity}
               <code class="key last">{selected.lastIdentity.identityKey}</code>
               <span
