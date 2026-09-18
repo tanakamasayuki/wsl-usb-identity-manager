@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- (EN) **Identifier change for the original ESP32.** It is now named the way esptool and board-identify name it — `esp32-d0wd-v3-<mac>` rather than `esp32-<mac>` — by reading the package eFuse that espflash does not expose. One board had two names across the two tools, which is the confusion this application exists to remove. An automatic-attach rule that matched an original ESP32 by board ID has to be added again; ESP32-S2 and later are unaffected, because there the series already was the chip name.
+- (JA) **初代 ESP32 の識別子が変わります。** esptool / board-identify と同じ名前になります——`esp32-<mac>` ではなく `esp32-d0wd-v3-<mac>`。espflash が返さないパッケージの eFuse を追加で 1 ワード読んでいます。同じボードが 2 つのツールで別の名前になっていたためです。ボード ID で初代 ESP32 を指定していた自動 Attach の条件は登録し直しが必要です。ESP32-S2 以降は元々シリーズ名がチップ名なので変わりません。
+
 ## 1.1.1 - 2026-09-18
 
 - (EN) Names a board from its USB descriptors alone, where the VID:PID is one a vendor programmed for that board and the device reports a serial number. Nothing is sent to the board, so this needs no confirmation and no grace window; it runs on every refresh, and answers for a device already attached to WSL. The table comes from board-identify, so both tools give one board one name. Stock USB-UART bridge IDs are refused: a CH340 names the cable, not what is on the end of it.

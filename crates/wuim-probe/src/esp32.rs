@@ -10,7 +10,8 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
 use espflash::connection::{Connection, ResetAfterOperation, ResetBeforeOperation};
-use espflash::flasher::Flasher;
+use espflash::flasher::{DeviceInfo, Flasher};
+use espflash::target::Chip;
 use serialport::{FlowControl, UsbPortInfo};
 use wuim_core::windevice::WinUsbDevice;
 
@@ -24,6 +25,10 @@ const PROBE_BAUD: u32 = 115_200;
 /// Long enough for a board that resets slowly, short enough that a device which
 /// is not an ESP32 does not hold the UI.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// Word 3 of the original ESP32's eFuse read window, which carries the package
+/// code and the single-core bit (`EFUSE_RD_REG_BASE + 4 * 3`).
+const ESP32_EFUSE_WORD3: u32 = 0x3FF5_A000 + 4 * 3;
 
 pub struct Esp32Probe;
 
@@ -64,12 +69,19 @@ impl TargetProbe for Esp32Probe {
             .as_deref()
             .ok_or_else(|| anyhow!("device has no COM port"))?;
 
-        let info = read_device_info(port_name, device)?;
+        let reading = read_device_info(port_name, device)?;
+        let info = reading.info;
 
         let mac = info
             .mac_address
             .ok_or_else(|| anyhow!("the chip did not report a MAC address"))?;
-        let variant = esp_variant(&info.chip.to_string());
+        let variant = match reading.esp32_package_word {
+            Some(word3) => {
+                let major = info.revision.map(|(major, _)| major).unwrap_or(0);
+                esp_variant(esp32_part_name(word3, major))
+            }
+            None => esp_variant(&info.chip.to_string()),
+        };
         let identity_key = identity_key(&variant, &mac)
             .map_err(|e| anyhow!("could not build an identity key from {variant}/{mac}: {e}"))?;
 
@@ -95,12 +107,53 @@ impl TargetProbe for Esp32Probe {
     }
 }
 
+/// The part name esptool gives the original ESP32, from its package eFuse.
+///
+/// espflash's `Chip` is the series, and for the original family that is one name
+/// — `esp32` — across parts that esptool distinguishes: `ESP32-D0WD-V3`,
+/// `ESP32-PICO-D4`, `ESP32-U4WDH`. From the S2 onwards the series *is* the name,
+/// so this is the only place the two disagree.
+///
+/// Held in step with esptool's `ESP32ROM.get_chip_description()`, because
+/// board-identify names a board from that output and one board with two names is
+/// the confusion this application exists to remove (R4.27).
+fn esp32_part_name(word3: u32, major_revision: u32) -> &'static str {
+    let package = ((word3 >> 9) & 0x07) + (((word3 >> 2) & 0x1) << 3);
+    let single_core = word3 & 1 != 0;
+    let rev3 = major_revision == 3;
+
+    match package {
+        0 if single_core => "ESP32-S0WDQ6",
+        0 if rev3 => "ESP32-D0WDQ6-V3",
+        0 => "ESP32-D0WDQ6",
+        1 if single_core => "ESP32-S0WD",
+        1 if rev3 => "ESP32-D0WD-V3",
+        1 => "ESP32-D0WD",
+        2 => "ESP32-D2WD",
+        4 => "ESP32-U4WDH",
+        5 if rev3 => "ESP32-PICO-V3",
+        5 => "ESP32-PICO-D4",
+        6 => "ESP32-PICO-V3-02",
+        7 => "ESP32-D0WDR2-V3",
+        // esptool says "Unknown ESP32" here. That is a sentence, not a name, and
+        // this one ends up in an identity key — so the series stands in, which
+        // is what every ESP32 was called before the package was read at all.
+        _ => "ESP32",
+    }
+}
+
+/// What one probe read off the chip.
+struct Reading {
+    info: DeviceInfo,
+    /// eFuse word 3, read only for the original ESP32 and only to name the
+    /// part. `None` for every other chip, and for a read that did not answer —
+    /// in which case the series name still identifies the board perfectly well.
+    esp32_package_word: Option<u32>,
+}
+
 /// Opens the port, talks to the ROM loader, and puts the board back into a
 /// normal boot before letting go.
-fn read_device_info(
-    port_name: &str,
-    device: &WinUsbDevice,
-) -> Result<espflash::flasher::DeviceInfo> {
+fn read_device_info(port_name: &str, device: &WinUsbDevice) -> Result<Reading> {
     let serial = serialport::new(port_name, PROBE_BAUD)
         .flow_control(FlowControl::None)
         .timeout(PROBE_TIMEOUT)
@@ -138,14 +191,64 @@ fn read_device_info(
 
     let info = flasher.device_info();
 
+    // One more register while the loader is still listening. Best effort: it
+    // only refines the name, and espflash has already done the protocol work
+    // that makes the read a register read rather than anything of ours (§11).
+    let chip = flasher.chip();
+    let esp32_package_word = match chip {
+        Chip::Esp32 => flasher.connection().read_reg(ESP32_EFUSE_WORD3).ok(),
+        _ => None,
+    };
+
     // Reset back into the application regardless of how the read went, so a
     // failed probe does not leave the board sitting in its bootloader.
-    let chip = flasher.chip();
     if let Err(e) = flasher.connection().reset_after(false, chip)
         && info.is_ok()
     {
         bail!("read the chip but could not reset it back into the application: {e}");
     }
 
-    info.map_err(|e| anyhow!("could not read the chip: {e}"))
+    let info = info.map_err(|e| anyhow!("could not read the chip: {e}"))?;
+    Ok(Reading {
+        info,
+        esp32_package_word,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Package code 1 with the single-core bit clear is the part in almost
+    /// every ESP32 module; revision 3 is what a board bought recently reports.
+    #[test]
+    fn the_common_esp32_is_named_the_way_esptool_names_it() {
+        let word3 = 1 << 9; // package 1, dual core
+        assert_eq!(esp32_part_name(word3, 3), "ESP32-D0WD-V3");
+        assert_eq!(esp32_part_name(word3, 1), "ESP32-D0WD");
+        assert_eq!(esp_variant(esp32_part_name(word3, 3)), "esp32-d0wd-v3");
+    }
+
+    #[test]
+    fn the_single_core_bit_picks_the_s_parts() {
+        assert_eq!(esp32_part_name(1 << 9 | 1, 3), "ESP32-S0WD");
+        assert_eq!(esp32_part_name(1, 3), "ESP32-S0WDQ6");
+    }
+
+    /// The fourth bit of the package code lives apart from the other three.
+    #[test]
+    fn the_package_code_is_assembled_from_two_places() {
+        // Package 5 (PICO) comes from bits 9..11 alone.
+        assert_eq!(esp32_part_name(5 << 9, 3), "ESP32-PICO-V3");
+        assert_eq!(esp32_part_name(5 << 9, 1), "ESP32-PICO-D4");
+        // Bit 2 carries the 8, so 0b1000 is a package this table does not name.
+        assert_eq!(esp32_part_name(1 << 2, 3), "ESP32");
+    }
+
+    #[test]
+    fn an_unnamed_package_falls_back_to_the_series() {
+        // 3 is not in esptool's table either.
+        assert_eq!(esp32_part_name(3 << 9, 3), "ESP32");
+        assert_eq!(esp_variant(esp32_part_name(3 << 9, 3)), "esp32");
+    }
 }

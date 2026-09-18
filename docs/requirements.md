@@ -413,6 +413,18 @@ type and unique id — always gives the same string.
 > under a different name. Precisely because the application saves none of them,
 > **there is no way to correct the strings that have already left it.**
 
+**R4.27**: Chip type names must agree with board-identify. Where they do not,
+**this side changes**.
+
+> One board under two names in two tools cannot be lined up at all. Which name is
+> better matters less than there being **one of them**.
+>
+> Concretely: the original ESP32's chip name follows esptool's
+> `ESP32ROM.get_chip_description()` — `ESP32-D0WD-V3` and its siblings. espflash,
+> which this application uses, reports the series (`esp32`) and no further, so
+> one extra eFuse word is read to name the package. From the ESP32-S2 onwards the
+> series is the chip name and there is no difference to close.
+
 **R4.11**: One device can hold several identifiers at once. For a debug probe,
 both the probe itself and the board behind it are held.
 
