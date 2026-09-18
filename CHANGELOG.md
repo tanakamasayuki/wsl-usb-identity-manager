@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.0 - 2026-09-18
+
 - (EN) Shows what a device was last identified as, greyed and dated, where there is no current answer, and keeps it across a restart — a device already attached to WSL cannot be probed at all, so without it a machine that starts with its boards forwarded can say nothing about them. A confirmed identity is still dropped on disconnect and still never saved as one, and the greyed value is never matched by an automatic-attach rule. In the list it doubles as the button that re-confirms it.
 - (JA) 識別結果が無いデバイスに、最後に識別できた内容を日時付きのグレーで表示し、再起動しても残す。Attach 中のデバイスはそもそも識別できないため、これが無いとボードを Attach したまま起動した PC は何も答えられない。確定した識別結果を切断で破棄することも、確定情報としては保存しないことも変わらない。グレーの値は自動 Attach の条件には一致しない。一覧ではそのまま再識別のボタンを兼ねる。
 - (EN) Keeps the name a device had before it was handed to WSL. An attached device is re-enumerated as the forwarding stub, so the name Windows had for it is gone; the previous one is shown beside whatever is left.
