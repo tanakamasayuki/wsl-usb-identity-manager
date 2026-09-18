@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.1 - 2026-09-18
+
 - (EN) Names a board from its USB descriptors alone, where the VID:PID is one a vendor programmed for that board and the device reports a serial number. Nothing is sent to the board, so this needs no confirmation and no grace window; it runs on every refresh, and answers for a device already attached to WSL. The table comes from board-identify, so both tools give one board one name. Stock USB-UART bridge IDs are refused: a CH340 names the cable, not what is on the end of it.
 - (JA) VID:PID がそのボードのために発行されたもので、かつシリアル番号を持つデバイスを、USB ディスクリプタだけで識別する。ボードには何も送らないため確認も猟時間も不要で、毎回の更新で評価され、WSL へ Attach 中のデバイスにも答えられる。対応表は board-identify から取り込むので、同じボードを両ツールが同じ名前で呼ぶ。素の USB-UART ブリッジの ID は拒否する——CH340 が指すのはケーブルであって、その先ではない。
 - (EN) CH32V006 can be identified. `ch32rv` 0.7 did not know the V00x line's `AttachChip` family byte, so the read never started, and its device database had no row for the CH32V006K8U6 even if it had. Both are fixed in 0.8.
