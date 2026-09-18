@@ -5094,7 +5094,7 @@ dependencies = [
 
 [[package]]
 name = "wsl-usb-identity-manager"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "anyhow",
  "jiff",
@@ -5109,7 +5109,7 @@ dependencies = [
 
 [[package]]
 name = "wuim-cli"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "anyhow",
  "serde_json",
@@ -5119,7 +5119,7 @@ dependencies = [
 
 [[package]]
 name = "wuim-core"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "anyhow",
  "jiff",
@@ -5130,7 +5130,7 @@ dependencies = [
 
 [[package]]
 name = "wuim-probe"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "anyhow",
  "ch32rv-target",
