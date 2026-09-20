@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.2.0 - 2026-09-20
+
 - (EN) Shows the hub tree, switchable with the device list rather than replacing it: which socket each device is in, what shares its hub, and the ports with nothing in them. Empty ports come from asking the hub, because a port with nothing in it has no device node to enumerate. Devices attached to WSL, and sharing records with nothing plugged in, are listed apart rather than hung off a guess.
 - (JA) ハブのツリー表示を追加した。一覧表示との切替で、置き換えではない——どのポートに挑さっているか、同じハブに何がいるか、空きポートはどこかが見える。空きポートはハブ自身に問い合わせている。何も挑さっていないポートにはデバイスノードが無いためである。WSL へ Attach 中のものと共有記録だけのものは、推測で配置せず別枠に並べる。
 - (EN) Switches hub port power through vhfilter, where a hub supports it. **What it cannot do is read the state back.** Windows is not told when a port loses power — measured with the VBUS drop confirmed, nothing in the device tree, the problem code, the COM port assignment or the hub's own registers moved at all — so the interface shows only what this application switched, says so in those words, forgets it when the application closes or the hub is unplugged, and never blocks an operation on the strength of it. A whole hub can be switched in one action, and the settings screen writes a script that fetches vhfilter, checks VirtualHere signed it, and installs its filter driver — the application itself neither downloads nor elevates.
