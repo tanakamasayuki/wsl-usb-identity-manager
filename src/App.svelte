@@ -303,9 +303,9 @@
    */
   const topologyKey = $derived(
     devices
-      .map((d) => `${d.instanceId} ${d.reachable} ${d.locationPath ?? ""}`)
+      .map((d) => `${d.instanceId}\u0000${d.reachable}\u0000${d.locationPath ?? ""}`)
       .sort()
-      .join(""),
+      .join("\u0001"),
   );
 
   $effect(() => {

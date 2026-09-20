@@ -95,9 +95,17 @@ pub enum OpenTarget {
     SettingsFolder,
     UsbipdReleases,
     Webview2Download,
+    /// Where this application comes from: releases, the documentation and
+    /// wherever a problem gets reported.
+    ProjectHome,
+    /// The page `vhfilter` is downloaded from, for anyone who would rather
+    /// fetch it themselves than run the script.
+    VhfilterHome,
 }
 
 const USBIPD_RELEASES: &str = "https://github.com/dorssel/usbipd-win/releases/latest";
+const PROJECT_HOME: &str = "https://github.com/tanakamasayuki/wsl-usb-identity-manager";
+const VHFILTER_HOME: &str = "https://www.virtualhere.com/node/4352";
 
 #[tauri::command]
 pub fn open_target(target: OpenTarget) -> Result<(), String> {
@@ -106,6 +114,8 @@ pub fn open_target(target: OpenTarget) -> Result<(), String> {
         OpenTarget::SettingsFolder => open_parent_of(&state::path()),
         OpenTarget::UsbipdReleases => shell_open::url(USBIPD_RELEASES),
         OpenTarget::Webview2Download => shell_open::url(webview2::DOWNLOAD_URL),
+        OpenTarget::ProjectHome => shell_open::url(PROJECT_HOME),
+        OpenTarget::VhfilterHome => shell_open::url(VHFILTER_HOME),
     };
     result.map_err(to_message)
 }

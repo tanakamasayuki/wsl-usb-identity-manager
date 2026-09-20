@@ -177,6 +177,12 @@
           </div>
           <button onclick={onvhfiltersetup}>{t("settings.ppps.setup")}</button>
         </div>
+        <div class="file">
+          <div class="file-text">
+            <span class="note">{t("settings.ppps.manual.note")}</span>
+          </div>
+          <button onclick={() => onopen("vhfilter_home")}>{t("settings.ppps.manual")}</button>
+        </div>
       {/if}
       <!-- No placeholder on the input: an example path would name a folder that
            does not exist and is not one of the ones searched, which reads as an
@@ -194,6 +200,12 @@
       <!-- Next to the log, because a problem report needs both and this is where
            someone goes looking for the log. -->
       <p class="version"><code>{t("app.name")} {version}</code></p>
+      <div class="file">
+        <div class="file-text">
+          <span class="note">{t("settings.project.note")}</span>
+        </div>
+        <button onclick={() => onopen("project_home")}>{t("settings.project")}</button>
+      </div>
 
       <h3>{t("settings.files")}</h3>
       <!-- The log records every usbipd command and every probe, and is the first

@@ -209,7 +209,9 @@ export type OpenTarget =
   | "log_folder"
   | "settings_folder"
   | "usbipd_releases"
-  | "webview2_download";
+  | "webview2_download"
+  | "project_home"
+  | "vhfilter_home";
 
 /** Which usbipd operations make sense for a device as it stands. */
 export interface Actions {

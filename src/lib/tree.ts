@@ -20,22 +20,20 @@ export type TreeRow =
       hub: HubView | null;
       port: PortView | null;
     }
-  | {
-      kind: "port";
-      depth: number;
-      hub: HubView;
-      port: PortView;
-      /** Present when something is plugged in that the filter excluded. */
-      hidden: DeviceView | null;
-    };
+  /** A socket with nothing in it. Only hubs whose power can be switched get one. */
+  | { kind: "port"; depth: number; hub: HubView; port: PortView };
 
 /**
  * Builds the ordered rows.
  *
- * `devices` is every device, which is what decides whether a socket is occupied;
- * `shown` is what the filter tabs let through, which is what decides whether a
- * row is listed. Conflating the two would let a filter make an occupied port
- * look empty.
+ * **Anything on a port is listed, whatever the tabs say.** The tree is about
+ * where things are plugged in, and a device hidden because the tab happens not
+ * to cover its state takes the answer with it — the state is one of the columns,
+ * so the row shows it rather than being removed for it.
+ *
+ * The tabs still govern the devices that are *not* on a port: those are records
+ * and forwarded devices rather than sockets, and a list of every bind record
+ * under the tree is what the tabs exist to keep out of the way.
  */
 export function buildTree(
   topology: TopologyView,
@@ -48,8 +46,6 @@ export function buildTree(
   const hubByPath = new Map(
     topology.hubs.filter((h) => h.locationPath).map((h) => [h.locationPath!, h] as const),
   );
-  const visible = new Set(shown.map((d) => d.instanceId));
-
   const rows: TreeRow[] = [];
   const placed = new Set<string>();
 
@@ -66,18 +62,17 @@ export function buildTree(
         continue;
       }
 
-      if (device && visible.has(device.instanceId)) {
+      if (device) {
         rows.push({ kind: "device", depth, device, hub, port });
         placed.add(device.instanceId);
         continue;
       }
-      if (device) placed.add(device.instanceId);
 
-      // A port with nothing the filter let through is worth a row only when its
-      // power can be switched: on a 16-port root hub the empty rows are noise,
-      // and on a switchable hub they are the thing being switched.
+      // An empty port is worth a row only when its power can be switched: on a
+      // 16-port root hub the empty rows are noise, and on a switchable hub they
+      // are the thing being switched.
       if (hub.ppps) {
-        rows.push({ kind: "port", depth, hub, port, hidden: device });
+        rows.push({ kind: "port", depth, hub, port });
       }
     }
   }

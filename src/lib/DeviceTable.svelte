@@ -318,18 +318,16 @@
       <!-- A port with nothing on it, or nothing this tab lets through. Drawn
            only for hubs whose power can be switched, so the control stays
            reachable whatever the tabs are set to. -->
-      {#snippet emptyPort(hub: HubView, port: PortView, depth: number, hidden: DeviceView | null)}
+      {#snippet emptyPort(hub: HubView, port: PortView, depth: number)}
         {@const off = port.switched === "off"}
         <tr class="port-row">
           <td class="state"></td>
           <td class="connection"></td>
           <td class="device" style="--depth: {depth}">
             <span class="port">{port.port}</span>
-            <span class="vacant">
-              {hidden || port.connected ? t("tree.filtered") : t("tree.empty")}
-            </span>
+            <span class="vacant">{t("tree.empty")}</span>
           </td>
-          <td class="vidpid">{hidden?.vidPid ?? ""}</td>
+          <td class="vidpid"></td>
           <td class="transport"></td>
           <td class="target"></td>
           <td class="auto"></td>
@@ -350,7 +348,7 @@
               row.port,
             )}
           {:else}
-            {@render emptyPort(row.hub, row.port, row.depth, row.hidden)}
+            {@render emptyPort(row.hub, row.port, row.depth)}
           {/if}
         {/each}
       {:else}
@@ -481,8 +479,11 @@
     padding: 2px 8px;
   }
 
+  /* Wide enough for the widest cell it holds: the "OFF" marker plus both
+     buttons. The table is `table-layout: fixed` and cells clip, so a column
+     that is too narrow does not wrap — it silently loses a control. */
   .power-col {
-    width: 118px;
+    width: 156px;
     white-space: nowrap;
   }
 

@@ -55,7 +55,6 @@ const en = {
 
   "target.hint": "Read from the board itself, so it follows the board between adapters and ports.",
   "tree.empty": "empty",
-  "tree.filtered": "(not in this tab)",
   "tree.power.all_off": "All off",
   "tree.power.all_off.hint": "Cuts the power to every port of this hub, one port at a time — vhfilter has no whole-hub form.",
   "tree.power.all_on": "All on",
@@ -156,6 +155,8 @@ const en = {
   "settings.ppps.from_path": "Found at the path below",
   "settings.ppps.missing":
     "vhfilter.exe was not found, so hub ports cannot be switched. It is VirtualHere's, downloaded as a single file from virtualhere.com; put it in one of these folders, or give its path below.",
+  "settings.ppps.manual": "Download page",
+  "settings.ppps.manual.note": "Or fetch vhfilter.exe yourself and put it in one of the folders above.",
   "settings.ppps.setup": "Write a setup script",
   "settings.ppps.setup.note":
     "Writes get-vhfilter.bat beside the log and opens the folder. Run it and it removes any old copy, downloads vhfilter from virtualhere.com, checks that VirtualHere signed it, and installs the filter driver. It asks for administrator rights itself, and Windows needs restarting afterwards.",
@@ -166,6 +167,8 @@ const en = {
     "The name and identification each device last had, shown greyed where there is no current answer. Never used to decide an automatic attach.",
   "settings.remembered.forget": "Forget all",
   "settings.about": "This build",
+  "settings.project": "Project page",
+  "settings.project.note": "Releases, the documentation, and where to report a problem.",
   "settings.files": "Files",
   "settings.log": "Log",
   "settings.settings_file": "Settings",
@@ -321,7 +324,6 @@ const ja: Record<Key, string> = {
 
   "target.hint": "ボード自身から読み出した識別子です。アダプタやポートを変えても追随します。",
   "tree.empty": "空き",
-  "tree.filtered": "（このタブの対象外）",
   "tree.power.all_off": "全 OFF",
   "tree.power.all_off.hint": "このハブの全ポートの給電を切ります。vhfilter にハブ単位の指定が無いため、1 ポートずつ実行します。",
   "tree.power.all_on": "全 ON",
@@ -420,6 +422,8 @@ const ja: Record<Key, string> = {
   "settings.ppps.from_path": "下記の指定パスで見つかりました",
   "settings.ppps.missing":
     "vhfilter.exe が見つからないため、ハブのポート給電を操作できません。VirtualHere の配布物で、virtualhere.com から単体のファイルとして入手します。下記のいずれかのフォルダに置くか、パスを指定してください。",
+  "settings.ppps.manual": "配布ページ",
+  "settings.ppps.manual.note": "自分で vhfilter.exe を取得して、上記のいずれかのフォルダに置くこともできます。",
   "settings.ppps.setup": "取得スクリプトを作成",
   "settings.ppps.setup.note":
     "ログと同じフォルダに get-vhfilter.bat を作成し、フォルダを開きます。実行すると、古いものを削除し、virtualhere.com から vhfilter をダウンロードし、VirtualHere の署名を検証してから、フィルタドライバをインストールします。管理者権限はスクリプト自身が要求します。完了後に Windows の再起動が必要です。",
@@ -430,6 +434,8 @@ const ja: Record<Key, string> = {
     "各デバイスが最後に持っていた名前と識別結果です。確定情報が無いときにグレーで表示します。自動 Attach の判定には使いません。",
   "settings.remembered.forget": "すべて消去",
   "settings.about": "このビルド",
+  "settings.project": "プロジェクトページ",
+  "settings.project.note": "リリース、ドキュメント、不具合の報告先です。",
   "settings.files": "ファイル",
   "settings.log": "ログ",
   "settings.settings_file": "設定",
