@@ -160,6 +160,22 @@
   /** Arrivals waiting for a probe, with the moment they appeared. */
   let pending: { instanceId: string; arrivedAt: number }[] = [];
   let draining = false;
+  /**
+   * When usbipd first reported each device as connected.
+   *
+   * Earlier than the arrival `seen` tracks, on purpose. usbipd knows a device is
+   * there as soon as it is plugged in, but the Windows device node a probe needs
+   * takes a moment longer to appear, and automatic attach can fire in between.
+   * This marks the start of the window in which a device is held back for an
+   * identification that has been decided on but not yet queued.
+   */
+  let presentSince = new Map<string, number>();
+  /**
+   * Devices automatic identification has already had its turn at, whether or not
+   * it got an answer. Releases the hold below without waiting out the window: a
+   * probe that failed will not succeed by being waited for.
+   */
+  let identifyTried = new Set<string>();
 
   const counts = $derived(
     Object.fromEntries(FILTERS.map((f) => [f.id, devices.filter(f.match).length])) as Record<
@@ -341,6 +357,9 @@
    * exactly what decides whether a probe could run at all.
    */
   function noteArrivals(next: DeviceView[]) {
+    // Captured before `seeded` is set, because the stamping below has to be
+    // able to tell the seeding poll from every later one.
+    const wasSeeded = seeded;
     const reachable = next.filter((d) => d.reachable);
     const arrivals = seeded
       ? reachable.filter((d) => !seen.has(d.instanceId))
@@ -353,6 +372,25 @@
     const present = new Set(next.filter((d) => d.present).map((d) => d.instanceId));
     for (const instanceId of [...autoAttachTried]) {
       if (!present.has(instanceId)) autoAttachTried.delete(instanceId);
+    }
+    for (const instanceId of [...identifyTried]) {
+      if (!present.has(instanceId)) identifyTried.delete(instanceId);
+    }
+
+    // Stamped from `present` rather than from the arrival set above, because the
+    // whole point is to cover the moment before a device is reachable.
+    //
+    // Nothing is stamped on the seeding poll. A device that was already plugged
+    // in when the application started is not going to be identified — R4.6 rules
+    // out a scan at startup — so holding an attach back for it would be waiting
+    // for something that is never coming.
+    const stamped = Date.now();
+    for (const instanceId of present) {
+      if (!wasSeeded) continue;
+      if (!presentSince.has(instanceId)) presentSince.set(instanceId, stamped);
+    }
+    for (const instanceId of [...presentSince.keys()]) {
+      if (!present.has(instanceId)) presentSince.delete(instanceId);
     }
 
     if (autoIdentify) {
@@ -373,12 +411,43 @@
   }
 
   /**
+   * Whether automatic identification still has a claim on this device.
+   *
+   * Attaching hands the device to WSL, and an attached device cannot be probed
+   * at all (finding F4) — so an attach that goes first does not merely reorder
+   * the two, it settles the question permanently. Hence the hold.
+   *
+   * It covers three states, and the third is the one that was missing: queued,
+   * running, and **not queued yet**. usbipd reports a device as connected before
+   * Windows has a node to probe through, and a rule on VID:PID or a bus id
+   * matches in that gap, where an identity rule cannot. The window is the same
+   * grace period the probe queue uses, so a device that never becomes probeable
+   * is held for that long and no longer.
+   *
+   * This starts no probe of its own. It waits for one automatic identification
+   * was going to run anyway, which is what keeps requirement R4.6 intact: with
+   * automatic identification off, nothing here waits for anything.
+   */
+  function awaitingIdentification(device: DeviceView): boolean {
+    if (probingIds.has(device.instanceId)) return true;
+    if (pending.some((p) => p.instanceId === device.instanceId)) return true;
+    if (!autoIdentify) return false;
+    if (identifyTried.has(device.instanceId)) return false;
+    // The same filters that decide what gets queued, minus the ones that need a
+    // Windows node — which is precisely what has not appeared yet.
+    if (device.identity) return false;
+    if (device.serial) return false;
+    if (device.vidPid && excluded().has(device.vidPid)) return false;
+
+    const since = presentSince.get(device.instanceId);
+    return since !== undefined && Date.now() - since < GRACE_SECONDS * 1000;
+  }
+
+  /**
    * Devices a rule names that could be attached right now.
    *
-   * Deliberately waits for identification to finish. A device queued for a
-   * probe is left alone until the probe has run, because attaching it first
-   * would take it away from Windows before it could be asked what it is — and
-   * would also decide the question an identity rule is waiting on.
+   * Deliberately waits for identification to finish; see
+   * [`awaitingIdentification`].
    */
   function autoAttachReady(): DeviceView[] {
     if (!autoAttach) return [];
@@ -387,8 +456,7 @@
         device.autoAttach.matched !== null &&
         device.actions.attach &&
         !autoAttachTried.has(device.instanceId) &&
-        !probingIds.has(device.instanceId) &&
-        !pending.some((p) => p.instanceId === device.instanceId),
+        !awaitingIdentification(device),
     );
   }
 
@@ -494,6 +562,9 @@
         const [item] = pending.splice(ready, 1);
         const device = devices.find((d) => d.instanceId === item.instanceId)!;
         const probe = device.probes.find((p) => p.available)!;
+        // Marked before the await, so automatic attach sees the turn as taken
+        // for as long as it lasts and does not start counting the window down.
+        identifyTried.add(item.instanceId);
         await identify(item.instanceId, probe.family, false);
       }
     } finally {

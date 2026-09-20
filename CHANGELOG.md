@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- (EN) Fix: automatic attach could run before automatic identification instead of after it. It held back a device that was queued for a probe, but not one that had only just been detected — `usbipd` reports a device as connected before Windows has made the device node a probe needs, and a rule on VID:PID or a bus id matches in that gap. Attaching there is not a reordering: an attached device cannot be probed at all, so the board ID was lost for as long as it stayed attached. The wait starts when the device is detected rather than when it becomes probeable, and ends with the same grace window. It starts no probe of its own, waits for nothing when automatic identification is off, and does not hold back devices that were already plugged in at startup, which nothing was going to identify.
+- (JA) 修正: 自動 Attach が自動識別より先に動くことがあった。識別待ちの列に入ったデバイスは待っていたが、検出直後のデバイスは待っていなかった——`usbipd` は Windows がデバイスノードを作る前に接続を報告し、その間 VID:PID や BUSID の条件は一致する。ここで Attach するのは順番の入れ替わりではなく、Attach 中はプローブできないためボード ID がその間失われる。待機の開始を「プローブ可能になった時」から「検出した時」に前倒しし、猫予時間で打ち切る。この待機がプローブを起こすことはなく、自動識別が無効なら何も待たない。起動時にすでに接続されていたデバイスも待たない（識別が来ないため）。
+
 ## 1.1.2 - 2026-09-18
 
 - (EN) **Identifier change for the original ESP32.** It is now named the way esptool and board-identify name it — `esp32-d0wd-v3-<mac>` rather than `esp32-<mac>` — by reading the package eFuse that espflash does not expose. One board had two names across the two tools, which is the confusion this application exists to remove. An automatic-attach rule that matched an original ESP32 by board ID has to be added again; ESP32-S2 and later are unaffected, because there the series already was the chip name.

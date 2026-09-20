@@ -794,11 +794,30 @@ identified**; until then it waits, unmatched.
 > never been shared would put a UAC dialog in front of a user who did nothing.
 > **An automatic action must not ask for elevation.**
 
-**R9.6**: A device queued for identification is not attached until that has run.
+**R9.6**: A device that is going to be identified is not attached until that has
+run.
 
 > Attaching takes the device out of Windows' reach, and with it the ability to
 > probe. Attach first and the answer a board-ID rule is waiting for can never
-> arrive.
+> arrive: **the two are not merely reordered, the answer is lost.**
+
+"Going to be identified" covers three states:
+
+1. being identified now
+2. queued for identification
+3. **not queued yet, but certain to be**
+
+The third is needed because `usbipd` knows a device is connected before Windows
+has made a device node for it. A probe needs that node, so the device cannot be
+queued until it appears — while a rule on VID:PID or a bus id **does match in
+that gap** (an identity rule cannot, there being no identity yet). The wait ends
+with the grace window measured from when the device was detected (§4.4).
+
+**This wait never causes a probe** (R9.4, R4.6). It waits for one automatic
+identification was going to run regardless, and waits for nothing at all when
+automatic identification is off. Devices already connected when the application
+started are not waited for either — no scan runs at startup (R4.6), so no
+identification is coming for them.
 
 **R9.7**: Automatic attach is attempted once per device per arrival. After a
 failure it is not retried until the device is unplugged and plugged back in.
