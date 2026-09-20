@@ -3,12 +3,17 @@
   import BusyOverlay from "./lib/BusyOverlay.svelte";
   import ContextMenu from "./lib/ContextMenu.svelte";
   import DeviceTable from "./lib/DeviceTable.svelte";
+  import { buildTree } from "./lib/tree";
   import ProbeDialog from "./lib/ProbeDialog.svelte";
   import SettingsPanel from "./lib/SettingsPanel.svelte";
   import {
     appVersion,
     checkUsbipd,
     clearRemembered,
+    readTopology,
+    switchHub,
+    writeVhfilterSetup,
+    switchPort,
     hideWindow,
     listDevices,
     log,
@@ -32,6 +37,7 @@
     DeviceView,
     Operation,
     ProbeOption,
+    TopologyView,
   } from "./lib/types";
 
   /**
@@ -136,6 +142,17 @@
   let version = $state("");
   /** How many devices have a remembered name or identification (R4.21). */
   let remembered = $state(0);
+  /**
+   * Flat list or hub tree.
+   *
+   * Both, rather than one: the flat list is what the filters and the state
+   * columns are for, and the tree answers a different question — which socket,
+   * and what else is on the same hub. Neither replaces the other.
+   */
+  let treeView = $state(false);
+  let topology = $state<TopologyView | null>(null);
+  /** Where `vhfilter.exe` is, when it is not somewhere already searched. */
+  let vhfilterPath = $state("");
   /**
    * Whether closing the window has been explained once.
    *
@@ -274,6 +291,65 @@
 
   // Counts change with every poll, and the switch can be flipped from either
   // side, so the menu follows both.
+  /**
+   * What the tree depends on, as one value.
+   *
+   * The poll hands back a new array every two seconds whether or not anything
+   * moved, so an effect watching `devices` would re-read the topology — a
+   * `usbipd` call, an enumeration and an IOCTL per hub — twice a second for
+   * nothing. Hubs and devices appearing and disappearing already show up in the
+   * ordinary enumeration, so this reduces that to a value that only changes when
+   * the shape of the tree could have.
+   */
+  const topologyKey = $derived(
+    devices
+      .map((d) => `${d.instanceId} ${d.reachable} ${d.locationPath ?? ""}`)
+      .sort()
+      .join(""),
+  );
+
+  $effect(() => {
+    // Only while the tree is on screen: it costs an IOCTL per hub, and the flat
+    // list has no use for it.
+    if (!treeView) return;
+    void topologyKey;
+    readTopology()
+      .then((next) => (topology = next))
+      .catch((e) => fail("reading the hub topology", e));
+  });
+
+  /**
+   * Switches a hub port's power.
+   *
+   * The result cannot be read back (nothing on Windows reports port power), so
+   * the list is refreshed and the port's own record is what the tree shows.
+   */
+  async function powerPort(hub: string, port: number, on: boolean) {
+    try {
+      await switchPort(hub, port, on);
+      error = null;
+    } catch (e) {
+      fail(`switching port ${port}`, e);
+    }
+    topology = await readTopology().catch(() => topology);
+    await refresh();
+  }
+
+  /** Switches every port of one hub. See [`powerPort`] for why nothing is read back. */
+  async function powerHub(hub: string, on: boolean) {
+    busy = t("busy.power");
+    try {
+      await switchHub(hub, on);
+      error = null;
+    } catch (e) {
+      fail(`switching the ports of ${hub}`, e);
+    } finally {
+      busy = null;
+    }
+    topology = await readTopology().catch(() => topology);
+    await refresh();
+  }
+
   $effect(() => {
     if (!settingsOpen) return;
     // Devices are remembered as they are seen and identified, all of which
@@ -605,6 +681,7 @@
         startWithWindows = stored.settings.startWithWindows;
         autoAttach = stored.settings.autoAttach;
         autoAttachRules = stored.settings.autoAttachRules;
+        vhfilterPath = stored.settings.vhfilterPath;
         toldAboutTray = stored.settings.toldAboutTray;
         settingsWritable = stored.writable;
         settingsPath = stored.path;
@@ -673,6 +750,7 @@
       startWithWindows,
       autoAttach,
       autoAttachRules,
+      vhfilterPath,
       toldAboutTray,
     }).catch((e) => {
       fail("saving the settings", e);
@@ -891,6 +969,21 @@
 
 <main>
   <nav>
+    <!-- Far left and shaped unlike anything else in the bar: it changes what
+         the list *is* rather than doing something, and a button that looks like
+         the action buttons beside it reads as one. -->
+    <div class="view-switch">
+      <button
+        class:active={!treeView}
+        title={t("toolbar.flat.hint")}
+        onclick={() => (treeView = false)}>{t("toolbar.flat")}</button
+      >
+      <button
+        class:active={treeView}
+        title={t("toolbar.tree.hint")}
+        onclick={() => (treeView = true)}>{t("toolbar.tree")}</button
+      >
+    </div>
     <div class="tabs">
       {#each FILTERS as f (f.id)}
         <button class="tab" class:active={filter === f.id} onclick={() => (filter = f.id)}>
@@ -970,6 +1063,9 @@
   <div class="scroll">
     <DeviceTable
       devices={shown}
+      rows={treeView && topology ? buildTree(topology, devices, shown) : null}
+      onswitchport={(hub, port, on) => void powerPort(hub, port, on)}
+      onswitchhub={(hub, on) => void powerHub(hub, on)}
       selected={selectedId}
       probing={probingIds}
       attaching={attachingIds}
@@ -1190,6 +1286,15 @@
     graceSeconds={GRACE_SECONDS}
     writable={settingsWritable}
     {remembered}
+    {vhfilterPath}
+    vhfilter={topology?.vhfilter ?? null}
+    vhfilterHow={topology?.vhfilterHow ?? null}
+    vhfilterSearchPath={topology?.vhfilterSearchPath ?? []}
+    onvhfiltersetup={() => {
+      writeVhfilterSetup()
+        .then((path) => log("info", `vhfilter setup script at ${path}`))
+        .catch((e) => fail("writing the vhfilter setup script", e));
+    }}
     onforget={() => {
       // Refreshing afterwards is what makes it visible: the greyed values are
       // in the rows, not in this panel.
@@ -1206,6 +1311,7 @@
       autoExcludeList = next.excludeList;
       confirmBeforeIdentify = next.confirmBeforeIdentify;
       startWithWindows = next.startWithWindows;
+      vhfilterPath = next.vhfilterPath;
       void saveSettings();
     }}
     onclose={() => (settingsOpen = false)}
@@ -1259,6 +1365,36 @@
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
+  }
+
+  /* A segmented control: joined, inset, and carrying a selected state — none of
+     which the action buttons do. The shape is the signal that this changes what
+     the list is rather than doing something to it. */
+  .view-switch {
+    display: flex;
+    margin-right: 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  .view-switch button {
+    all: unset;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: var(--fg-muted);
+    cursor: default;
+  }
+
+  .view-switch button:hover {
+    color: var(--fg);
+  }
+
+  .view-switch button.active {
+    background: var(--bg-selected);
+    color: var(--fg);
+    font-weight: 600;
   }
 
   nav {

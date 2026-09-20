@@ -72,6 +72,10 @@ fn main() {
             commands::check_usbipd,
             commands::open_target,
             commands::clear_remembered,
+            commands::read_topology,
+            commands::switch_port,
+            commands::switch_hub,
+            commands::write_vhfilter_setup,
             commands::set_tray,
             commands::hide_window,
             commands::show_window

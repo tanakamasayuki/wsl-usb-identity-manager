@@ -1055,6 +1055,120 @@ hidden window and brings it to the front** (R13.10).
 
 ---
 
+### 10.7 The hub tree and port power
+
+**R10.24**: The flat list and the tree must both be available. **The tree is the
+same table reordered, and must not drop columns.**
+
+> Dropping them loses the state, the connection, the serial number and the
+> board — which is what the list is for, and too much to trade for a hierarchy.
+> What the tree adds is an order, an indent, and rows for empty ports. That is
+> all it needs to add.
+
+**R10.33**: The view switch must not look like the action buttons.
+
+> Switching between the list and the tree changes what is shown; it does not do
+> anything. Shaped like "Refresh" and "Settings" beside it, it reads as something
+> that acts.
+
+> The list is for filtering by state and operating on what is found; the tree is
+> for seeing which socket a device is in and what shares its hub. With three
+> identical CH340s plugged in, **which hub and which port** is a question the
+> list cannot answer.
+
+**R10.25**: The tree is built from `DEVPKEY_Device_LocationPaths`, and empty
+ports come from asking the hub itself.
+
+> The port numbers in a location path agree with the port numbers the hub
+> reports (measured). A port with nothing in it, on the other hand, **has no
+> device node**, so an enumeration of devices cannot show it by construction.
+> `IOCTL_USB_GET_NODE_CONNECTION_INFORMATION_EX` answers that.
+
+**R10.26**: Devices that cannot be placed on a port — attached to WSL, or a
+sharing record with nothing plugged in — are listed apart rather than hung off a
+guess.
+
+### Port power (PPPS)
+
+**R10.27**: Switching port power is left to `vhfilter`. The executable is not
+shipped; it is searched for, and where it is missing the interface says where to
+get it and where to put it.
+
+> It is VirtualHere's, ships as a bare executable with no installer, and states
+> no redistribution terms, so it is found the way `usbipd` is. The search order
+> is the application's own folder, `%LOCALAPPDATA%`, then a configured path.
+> Installing its filter driver needs administrator rights and a reboot once;
+> using it afterwards needs neither (measured).
+
+**R10.36**: Fetching `vhfilter` and installing its filter driver is left to a
+script the application writes. The application neither downloads nor elevates.
+
+> Fetching is the easy half. The hard half is `--install-filter`, which needs
+> administrator rights and a reboot, and driving that from a GUI that otherwise
+> never elevates (§5.3) buys nothing. A script can ask for the rights itself, at
+> the moment the user chose to run it.
+>
+> It is written into one of the searched folders (`%LOCALAPPDATA%`), so a
+> successful run leaves nothing to configure. Before running what it downloaded
+> it **checks the Authenticode signature and the signer**, and deletes the file
+> rather than running it if VirtualHere did not sign it.
+
+**R10.28**: A port's power state must never be shown as something observed. The
+only thing that can be shown is the record that **this application switched it
+off**.
+
+> Windows is not told when a port loses power. Measured on a WCH `1a86:8094`
+> with the VBUS drop confirmed: `Present`, `Status`, the problem code and the
+> COM port assignment were all unchanged, and asking the hub itself moved not a
+> single byte. The one call that noticed was `SetCommState` — a write, which
+> resets the board. **There is no way to read the power state.**
+
+**R10.29**: That record must not be persisted. It is lost when the process ends,
+and dropped for a hub that stops being enumerated.
+
+> Replugging a hub powers its ports back up, so carrying the record across that
+> would leave the application asserting that a live port is dead. Nor is power
+> restored on exit: **leaving the hardware alone is the less surprising of the
+> two.**
+
+**R10.30**: Devices on a port recorded as off are shown as distinct from the
+rest, but must not have their operations blocked.
+
+**R10.35**: The power controls belong on **the row the device is on**, not only
+on rows for empty ports.
+
+> The row worth power-cycling is the one with an identified board on it. Putting
+> the control only on empty ports leaves it **everywhere except where it is
+> wanted**.
+
+**R10.34**: Power controls must not be a toggle. ON and OFF are offered
+separately.
+
+> A toggle only works if the current state is known, and the power state cannot
+> be read (R10.28). For a port with no record that is in fact off, a toggle would
+> mean switching it **off and then on again** to get it back. Treated as a
+> request rather than a state, a press does what it says whenever it happens.
+
+> The record can be wrong, which leaves no grounds for refusing. Marking the row,
+> and having the reason on screen when an operation fails, is as far as this goes.
+
+**R10.31**: Every port of a hub must be switchable in one action.
+
+> "Turn this hub off" is a real unit of work on a bench. A port at a time means a
+> process launch and a list refresh between each, which makes one action visibly
+> proceed in stages.
+
+**R10.32**: The tree is re-read **when something changes**, never on a timer.
+
+> Learning what the hubs and ports are doing costs a `usbipd` call, an
+> enumeration, an IOCTL per hub and a process launch for `vhfilter`. Hubs and
+> devices coming and going already show up in the ordinary enumeration, so that
+> is trigger enough.
+>
+> External processes are started **without a console window**
+> (`CREATE_NO_WINDOW`). A black box flashing every two seconds is not something a
+> resident application can do.
+
 ## 11. The technical stack
 
 | Layer | Choice |

@@ -23,11 +23,19 @@
     /** How many devices have a remembered name or identification (R4.21). */
     remembered: number;
     onforget: () => void;
+    /** Where `vhfilter.exe` is, when it is not somewhere already searched. */
+    vhfilterPath: string;
+    /** Where it was found, if it was, and where else was looked. */
+    vhfilter: string | null;
+    vhfilterHow: "configured" | "searched" | null;
+    vhfilterSearchPath: string[];
+    onvhfiltersetup: () => void;
     onchange: (next: {
       enabled: boolean;
       excludeList: string;
       confirmBeforeIdentify: boolean;
       startWithWindows: boolean;
+      vhfilterPath: string;
     }) => void;
     onclose: () => void;
   }
@@ -45,6 +53,11 @@
     writable,
     remembered,
     onforget,
+    vhfilterPath,
+    vhfilter,
+    vhfilterHow,
+    vhfilterSearchPath,
+    onvhfiltersetup,
     onchange,
     onclose,
   }: Props = $props();
@@ -56,6 +69,7 @@
       excludeList,
       confirmBeforeIdentify,
       startWithWindows,
+      vhfilterPath,
       ...patch,
     });
   }
@@ -135,6 +149,46 @@
       <!-- Below the row rather than beside the button: squeezed into half a
            column it wrapped to four lines and set the section's height. -->
       <p class="note">{t("settings.remembered.note")}</p>
+
+          <h3>{t("settings.ppps")}</h3>
+      <!-- Found rather than shipped: the tool is VirtualHere's, ships as a bare
+           executable with no installer and no stated redistribution terms. -->
+      {#if vhfilter}
+        <!-- "Found on its own" is worth saying: it is what tells the user the
+             search did its job and the path below can stay empty. -->
+        <div class="file">
+          <div class="file-text">
+            <span class="ok"
+              >&check; {vhfilterHow === "configured"
+                ? t("settings.ppps.from_path")
+                : t("settings.ppps.detected")}</span
+            >
+            <code>{vhfilter}</code>
+          </div>
+        </div>
+      {:else}
+        <p class="note">{t("settings.ppps.missing")}</p>
+        {#each vhfilterSearchPath as dir (dir)}
+          <p class="note"><code>{dir}</code></p>
+        {/each}
+        <div class="file">
+          <div class="file-text">
+            <span class="note">{t("settings.ppps.setup.note")}</span>
+          </div>
+          <button onclick={onvhfiltersetup}>{t("settings.ppps.setup")}</button>
+        </div>
+      {/if}
+      <!-- No placeholder on the input: an example path would name a folder that
+           does not exist and is not one of the ones searched, which reads as an
+           instruction to put the file there. -->
+      <label class="field">
+        <span>{t("settings.ppps.path")}</span>
+        <input
+          type="text"
+          value={vhfilterPath}
+          oninput={(e) => change({ vhfilterPath: e.currentTarget.value })}
+        />
+      </label>
 
       <h3>{t("settings.about")}</h3>
       <!-- Next to the log, because a problem report needs both and this is where
@@ -253,6 +307,11 @@
   .version {
     margin: 0;
     font-size: 12px;
+  }
+
+  .ok {
+    color: var(--ok);
+    font-weight: 600;
   }
 
   .version code {

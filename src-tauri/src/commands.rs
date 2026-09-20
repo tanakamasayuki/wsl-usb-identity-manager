@@ -9,6 +9,7 @@ use std::time::Instant;
 
 use wuim_core::UsbIds;
 use wuim_core::autostart;
+use wuim_core::ppps;
 use wuim_core::shell_open;
 use wuim_core::snapshot::{DeviceRow, Snapshot};
 use wuim_core::usbipd::{self, Availability, Operation};
@@ -18,7 +19,7 @@ use wuim_probe::TargetIdentity;
 use crate::logging;
 use crate::state;
 use crate::tray::{self, TrayView};
-use crate::view::{DeviceView, Identity, LastKnown, SettingsView};
+use crate::view::{DeviceView, HubView, Identity, LastKnown, PortView, SettingsView, TopologyView};
 
 /// anyhow's chain, flattened for the frontend and written to the log on the way
 /// past. Tauri needs a `Serialize` error and `{:#}` keeps the causes that make a
@@ -233,6 +234,171 @@ pub fn read_settings() -> StoredSettings {
     }
 }
 
+/// The hub tree, with what has been asked of each port.
+///
+/// Read on its own rather than with the device list: it costs an IOCTL per hub,
+/// and the flat list — which is what most people leave the window on — has no
+/// use for it.
+#[tauri::command]
+pub async fn read_topology() -> Result<TopologyView, String> {
+    off_thread("reading the hub topology", || {
+        let snapshot = Snapshot::capture().map_err(to_message)?;
+
+        // A hub that has gone takes its switching record with it: unplugging one
+        // powers its ports back up, so keeping the record would leave us
+        // asserting "off" about a port that is on.
+        let present: std::collections::HashSet<String> = snapshot
+            .hubs
+            .iter()
+            .map(|h| h.instance_id.clone())
+            .collect();
+        let dropped = ppps::forget_absent(&present);
+        if dropped > 0 {
+            logging::info(&format!(
+                "forgot the switched ports of {dropped} hub(s) that went away"
+            ));
+        }
+
+        let configured = state::with(|store| store.settings.vhfilter_path.clone());
+        let located = ppps::found(Some(&configured));
+        let vhfilter = located.as_ref().map(|(path, _)| path.clone());
+        let present_ids: Vec<String> = present.iter().cloned().collect();
+        let ppps_hubs: Vec<String> = vhfilter
+            .as_deref()
+            .and_then(|path| ppps::hubs(path, &present_ids).ok())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|h| h.instance_id)
+            .collect();
+
+        let hubs = snapshot
+            .hubs
+            .iter()
+            .map(|h| HubView {
+                ppps: ppps_hubs
+                    .iter()
+                    .any(|id| id.eq_ignore_ascii_case(&h.instance_id)),
+                instance_id: h.instance_id.clone(),
+                name: h.name.clone(),
+                location_path: h.location_path.clone(),
+                ports: h
+                    .ports
+                    .iter()
+                    .map(|p| PortView {
+                        port: p.port,
+                        connected: p.connected,
+                        status: p.status_name,
+                        switched: ppps::recorded(&h.instance_id, p.port).map(|state| match state {
+                            ppps::PortPower::SwitchedOff => "off",
+                            ppps::PortPower::SwitchedOn => "on",
+                        }),
+                    })
+                    .collect(),
+            })
+            .collect();
+
+        Ok(TopologyView {
+            hubs,
+            vhfilter_how: located.as_ref().map(|(_, how)| match how {
+                ppps::FoundHow::Configured => "configured",
+                ppps::FoundHow::Searched => "searched",
+            }),
+            vhfilter: vhfilter.map(|p| p.display().to_string()),
+            vhfilter_search_path: ppps::search_path()
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect(),
+        })
+    })
+    .await
+}
+
+/// Switches a hub port's power.
+///
+/// Runs unelevated: `vhfilter` needs administrator rights to install its filter
+/// driver, once, and none to use it afterwards (measured). What the switch did
+/// cannot be read back, so the result recorded here is what was asked for.
+#[tauri::command]
+pub async fn switch_port(hub: String, port: u32, on: bool) -> Result<(), String> {
+    off_thread("switching a hub port", move || {
+        let configured = state::with(|store| store.settings.vhfilter_path.clone());
+        let vhfilter = ppps::locate(Some(&configured))
+            .ok_or_else(|| "vhfilter.exe was not found".to_owned())?;
+        logging::info(&format!(
+            "switching port {port} of {hub} {}",
+            if on { "on" } else { "off" }
+        ));
+        ppps::switch(&vhfilter, &hub, port, on).map_err(to_message)
+    })
+    .await
+}
+
+/// Writes the script that fetches `vhfilter` and installs its filter driver,
+/// then opens the folder it went into.
+///
+/// Written rather than run: it asks for administrator rights and ends in a
+/// reboot, and this application does not drive elevations it can hand to the
+/// user instead (§5.3).
+#[tauri::command]
+pub async fn write_vhfilter_setup() -> Result<String, String> {
+    off_thread("writing the vhfilter setup script", || {
+        // The second search path: under %LOCALAPPDATA%, beside the log, which is
+        // writable without asking anyone. Downloading there means a successful
+        // run needs nothing configured afterwards.
+        let dir = ppps::search_path()
+            .into_iter()
+            .nth(1)
+            .ok_or_else(|| "no writable folder to put it in".to_owned())?;
+        let path = ppps::write_setup_script(&dir).map_err(to_message)?;
+        logging::info(&format!("wrote {}", path.display()));
+        shell_open::folder(&dir).map_err(to_message)?;
+        Ok(path.display().to_string())
+    })
+    .await
+}
+
+/// Switches every port of one hub.
+///
+/// One command rather than a loop in the interface: each switch is a process
+/// launch, and doing four of them with a list refresh between each would make
+/// "turn this hub off" a visibly staggered thing rather than one action.
+#[tauri::command]
+pub async fn switch_hub(hub: String, on: bool) -> Result<(), String> {
+    off_thread("switching a hub", move || {
+        let configured = state::with(|store| store.settings.vhfilter_path.clone());
+        let vhfilter = ppps::locate(Some(&configured))
+            .ok_or_else(|| "vhfilter.exe was not found".to_owned())?;
+
+        let snapshot = Snapshot::capture().map_err(to_message)?;
+        let ports = snapshot
+            .hubs
+            .iter()
+            .find(|h| h.instance_id.eq_ignore_ascii_case(&hub))
+            .map(|h| h.ports.len() as u32)
+            .ok_or_else(|| format!("{hub} is not connected"))?;
+
+        logging::info(&format!(
+            "switching all {ports} ports of {hub} {}",
+            if on { "on" } else { "off" }
+        ));
+
+        // Every port is attempted even when one refuses: stopping half way
+        // through would leave the hub in a state nobody asked for.
+        let mut failed = Vec::new();
+        for port in 1..=ports {
+            if let Err(e) = ppps::switch(&vhfilter, &hub, port, on) {
+                failed.push(format!("{port}: {e}"));
+            }
+        }
+        if failed.is_empty() {
+            Ok(())
+        } else {
+            Err(format!("some ports refused — {}", failed.join("; ")))
+        }
+    })
+    .await
+}
+
 /// Drops every remembered device, returning how many there were.
 ///
 /// Offered because what is remembered can be wrong without anything having gone
@@ -260,6 +426,11 @@ pub struct StoredSettings {
 /// Saves the settings the user changed.
 #[tauri::command]
 pub fn write_settings(settings: SettingsView) -> Result<(), String> {
+    // The listed hubs are cached against the hubs present, which a new path to
+    // vhfilter does not change — so the cache has to be dropped by hand.
+    if state::with(|store| store.settings.vhfilter_path != settings.vhfilter_path) {
+        ppps::forget_listed();
+    }
     logging::info(&format!(
         "settings: auto_identify={} exclude={:?} confirm={} startup={} auto_attach={} rules={:?}",
         settings.auto_identify,

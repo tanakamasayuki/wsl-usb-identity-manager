@@ -10,6 +10,7 @@ import type {
   StoredSettings,
   TargetIdentity,
   TrayView,
+  TopologyView,
 } from "./types";
 
 /**
@@ -76,6 +77,34 @@ export function hideWindow(): Promise<void> {
 /** Brings the window back, for when something has to be asked of the user. */
 export function showWindow(): Promise<void> {
   return invoke("show_window");
+}
+
+/** The hub tree, with what has been asked of each port. */
+export function readTopology(): Promise<TopologyView> {
+  return invoke("read_topology");
+}
+
+/**
+ * Switches a hub port's power.
+ *
+ * What it did cannot be read back, so what comes back is only that `vhfilter`
+ * accepted the request.
+ */
+export function switchPort(hub: string, port: number, on: boolean): Promise<void> {
+  return invoke("switch_port", { hub, port, on });
+}
+
+/**
+ * Writes the script that fetches vhfilter and installs its filter driver, and
+ * opens the folder it went into. Returns where it was written.
+ */
+export function writeVhfilterSetup(): Promise<string> {
+  return invoke("write_vhfilter_setup");
+}
+
+/** Switches every port of one hub. */
+export function switchHub(hub: string, on: boolean): Promise<void> {
+  return invoke("switch_hub", { hub, on });
 }
 
 /** Drops every remembered name and identification, returning how many there were. */

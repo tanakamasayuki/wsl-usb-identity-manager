@@ -217,6 +217,13 @@ pub struct Settings {
     /// What to attach automatically. An empty list attaches nothing, whatever
     /// [`Self::auto_attach`] says.
     pub auto_attach_rules: Vec<Rule>,
+    /// Where `vhfilter.exe` is, when it is not somewhere [`crate::ppps::locate`]
+    /// already looks. Empty means "look in the usual places".
+    ///
+    /// A path rather than a bundled copy: the tool is VirtualHere's, ships as a
+    /// bare executable with no installer and no stated redistribution terms, so
+    /// it is found rather than shipped — the same treatment `usbipd` gets.
+    pub vhfilter_path: String,
     /// Whether the user has been told that closing the window leaves the
     /// application running in the tray.
     ///
@@ -247,6 +254,7 @@ impl Default for Settings {
             // is not something to start doing on a fresh install.
             auto_attach: false,
             auto_attach_rules: Vec::new(),
+            vhfilter_path: String::new(),
             told_about_tray: false,
         }
     }

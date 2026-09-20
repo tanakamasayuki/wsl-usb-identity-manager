@@ -1,9 +1,19 @@
 <script lang="ts">
   import { t } from "./i18n";
-  import type { DeviceView, Identity } from "./types";
+  import type { TreeRow } from "./tree";
+  import type { DeviceView, HubView, Identity, PortView } from "./types";
 
   interface Props {
     devices: DeviceView[];
+    /**
+     * The same rows, ordered by where things are plugged in.
+     *
+     * One table either way: switching to the tree must not cost the state, the
+     * connection, the serial number or the board, which is most of what anyone
+     * came to the list for. What it adds is the order, an indent, and rows for
+     * ports with nothing in them.
+     */
+    rows: TreeRow[] | null;
     selected: string | null;
     /** Shown in place of the table when there is nothing to list. */
     empty: string;
@@ -16,10 +26,13 @@
     onselect: (instanceId: string) => void;
     onmenu: (instanceId: string, x: number, y: number) => void;
     onidentify: (instanceId: string) => void;
+    onswitchport: (hub: string, port: number, on: boolean) => void;
+    onswitchhub: (hub: string, on: boolean) => void;
   }
 
   let {
     devices,
+    rows,
     selected,
     empty,
     probing,
@@ -28,6 +41,8 @@
     onselect,
     onmenu,
     onidentify,
+    onswitchport,
+    onswitchhub,
   }: Props = $props();
 
   /**
@@ -74,6 +89,17 @@
     return [device.busId, device.comPort].filter(Boolean).join(" / ") || "—";
   }
 
+  /**
+   * Whether the power column is there at all.
+   *
+   * Only in tree order, and only when a hub on screen can actually switch: a
+   * column of blank cells is worse than no column, and this one is wide enough
+   * to be felt.
+   */
+  const showPower = $derived(
+    rows !== null && rows.some((row) => "hub" in row && row.hub?.ppps === true),
+  );
+
   function openMenu(event: MouseEvent, instanceId: string) {
     event.preventDefault();
     onselect(instanceId);
@@ -81,7 +107,7 @@
   }
 </script>
 
-{#if devices.length === 0}
+{#if rows ? rows.length === 0 : devices.length === 0}
   <p class="empty">{empty}</p>
 {:else}
   <table>
@@ -94,13 +120,24 @@
         <th class="transport">{t("col.transport")}</th>
         <th class="target">{t("col.target")}</th>
         <th class="auto">{t("col.auto")}</th>
+        {#if showPower}
+          <th class="power-col">{t("col.power")}</th>
+        {/if}
       </tr>
     </thead>
     <tbody>
-      {#each devices as device (device.instanceId)}
+      {#snippet deviceRow(
+        device: DeviceView,
+        depth: number,
+        portLabel: string | null,
+        hub: HubView | null = null,
+        port: PortView | null = null,
+      )}
+        {@const off = port?.switched === "off"}
         {@const tr = transport(device)}
         {@const identity = device.identity}
         <tr
+          class:off
           class:selected={device.instanceId === selected}
           onclick={() => onselect(device.instanceId)}
           oncontextmenu={(e) => openMenu(e, device.instanceId)}
@@ -117,7 +154,10 @@
             {/if}
           </td>
           <td class="connection">{connection(device)}</td>
-          <td class="device" title={device.instanceId}>
+          <td class="device" title={device.instanceId} style="--depth: {depth}">
+            {#if portLabel !== null}
+              <span class="port">{portLabel}</span>
+            {/if}
             <!-- The name Windows reports, unchanged. Identifying a board does
                  not rename the device it is plugged into. -->
             <span class="primary">{device.name}</span>
@@ -193,8 +233,131 @@
               >
             {/if}
           </td>
+          {#if showPower}
+            <!-- The row that matters most: a board that has been identified is
+                 exactly the one worth power-cycling, and hiding the control
+                 behind an empty-port row put it everywhere except there. -->
+            <td class="power-col">
+              {#if hub?.ppps && port}
+                {@render powerButtons(hub, port, off)}
+              {/if}
+            </td>
+          {/if}
         </tr>
-      {/each}
+      {/snippet}
+
+      {#snippet powerButtons(hub: HubView, port: PortView, off: boolean)}
+        {#if off}
+          <span class="off-mark" title={t("tree.power.off.hint")}>{t("tree.power.off")}</span>
+        {/if}
+        <!-- Two actions rather than a toggle: nothing reports the power state,
+             so a toggle would sometimes need pressing twice (R10.34). -->
+        <button
+          class="power"
+          title={t("tree.power.on.hint")}
+          onclick={(e) => {
+            e.stopPropagation();
+            onswitchport(hub.instanceId, port.port, true);
+          }}>{t("tree.power.on")}</button
+        >
+        <button
+          class="power"
+          title={t("tree.power.cut.hint")}
+          onclick={(e) => {
+            e.stopPropagation();
+            onswitchport(hub.instanceId, port.port, false);
+          }}>{t("tree.power.cut")}</button
+        >
+      {/snippet}
+
+      <!-- A hub is where things hang rather than something to bind or attach,
+           so its row carries the name, what it is, and the one control that
+           belongs to it: switching every port at once. -->
+      {#snippet hubRow(hub: HubView, depth: number, portLabel: number | null, device: DeviceView | null)}
+        <tr class="hub" onclick={() => device && onselect(device.instanceId)}>
+          <td class="state"></td>
+          <td class="connection"></td>
+          <td class="device" title={hub.instanceId} style="--depth: {depth}">
+            {#if portLabel !== null}
+              <span class="port">{portLabel}</span>
+            {/if}
+            <span class="hub-mark">▣</span>
+            <span class="primary">{hub.name}</span>
+          </td>
+          <td class="vidpid">{device?.vidPid ?? ""}</td>
+          <td class="transport"></td>
+          <td class="target"></td>
+          <td class="auto"></td>
+          <td class="power-col">
+            {#if hub.ppps}
+              <!-- Two actions rather than a toggle. A toggle would have to know
+                   which way the port is, and nothing on Windows reports that —
+                   so with the state unknown one press would do nothing visible
+                   and the user would have to go the long way round. -->
+              <button
+                class="power"
+                title={t("tree.power.all_on.hint")}
+                onclick={(e) => {
+                  e.stopPropagation();
+                  onswitchhub(hub.instanceId, true);
+                }}>{t("tree.power.all_on")}</button
+              >
+              <button
+                class="power"
+                title={t("tree.power.all_off.hint")}
+                onclick={(e) => {
+                  e.stopPropagation();
+                  onswitchhub(hub.instanceId, false);
+                }}>{t("tree.power.all_off")}</button
+              >
+            {/if}
+          </td>
+        </tr>
+      {/snippet}
+
+      <!-- A port with nothing on it, or nothing this tab lets through. Drawn
+           only for hubs whose power can be switched, so the control stays
+           reachable whatever the tabs are set to. -->
+      {#snippet emptyPort(hub: HubView, port: PortView, depth: number, hidden: DeviceView | null)}
+        {@const off = port.switched === "off"}
+        <tr class="port-row">
+          <td class="state"></td>
+          <td class="connection"></td>
+          <td class="device" style="--depth: {depth}">
+            <span class="port">{port.port}</span>
+            <span class="vacant">
+              {hidden || port.connected ? t("tree.filtered") : t("tree.empty")}
+            </span>
+          </td>
+          <td class="vidpid">{hidden?.vidPid ?? ""}</td>
+          <td class="transport"></td>
+          <td class="target"></td>
+          <td class="auto"></td>
+          <td class="power-col">{@render powerButtons(hub, port, off)}</td>
+        </tr>
+      {/snippet}
+
+      {#if rows}
+        {#each rows as row, i (i)}
+          {#if row.kind === "hub"}
+            {@render hubRow(row.hub, row.depth, row.port, row.device)}
+          {:else if row.kind === "device"}
+            {@render deviceRow(
+              row.device,
+              row.depth,
+              row.port ? String(row.port.port) : null,
+              row.hub,
+              row.port,
+            )}
+          {:else}
+            {@render emptyPort(row.hub, row.port, row.depth, row.hidden)}
+          {/if}
+        {/each}
+      {:else}
+        {#each devices as device (device.instanceId)}
+          {@render deviceRow(device, 0, null)}
+        {/each}
+      {/if}
     </tbody>
   </table>
 {/if}
@@ -267,6 +430,60 @@
 
   .primary {
     font-weight: 600;
+  }
+
+  /* The indent lives on the cell's padding rather than on a spacer element, so
+     the text still truncates against the column edge. */
+  .device {
+    padding-left: calc(10px + var(--depth, 0) * 16px);
+  }
+
+  .port {
+    display: inline-block;
+    min-width: 18px;
+    margin-right: 6px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-size: 12px;
+    color: var(--fg-faint);
+  }
+
+  .hub-mark {
+    margin-right: 4px;
+    color: var(--fg-muted);
+  }
+
+  tr.hub {
+    background: var(--bg-header);
+  }
+
+  .vacant {
+    color: var(--fg-faint);
+  }
+
+  /* Switched off by us: the device node is still there and Windows still says
+     it is fine, which is exactly why the row has to say otherwise. */
+  tr.off .primary,
+  tr.off .secondary,
+  tr.off .id {
+    color: var(--fg-faint);
+    text-decoration: line-through;
+  }
+
+  .off-mark {
+    font-size: 11px;
+    color: var(--warn);
+    margin-right: 6px;
+  }
+
+  button.power {
+    font-size: 11px;
+    padding: 2px 8px;
+  }
+
+  .power-col {
+    width: 118px;
+    white-space: nowrap;
   }
 
   .secondary {

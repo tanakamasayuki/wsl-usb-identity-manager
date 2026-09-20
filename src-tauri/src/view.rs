@@ -94,6 +94,56 @@ pub struct DeviceView {
     pub last_identified_at: Option<String>,
 }
 
+/// The hub tree, and what this application has asked of its ports.
+///
+/// Sent apart from the device list rather than folded into it: a hub is not
+/// something to bind or attach, and its **ports** are the point — a port with
+/// nothing in it has no device row to carry it.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TopologyView {
+    pub hubs: Vec<HubView>,
+    /// Where `vhfilter.exe` was found, if it was. `None` means per-port power is
+    /// unavailable and the interface says where to put the file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vhfilter: Option<String>,
+    /// `configured` or `searched`, so the interface can say that nothing had to
+    /// be set up rather than only where the file is.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vhfilter_how: Option<&'static str>,
+    /// The directories searched, so the interface can name them rather than
+    /// only report a failure.
+    pub vhfilter_search_path: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubView {
+    pub instance_id: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location_path: Option<String>,
+    /// True when `vhfilter` lists this hub as able to switch port power. It
+    /// means the hub **advertises** the feature and nothing more: hubs that
+    /// claim it and do nothing are common.
+    pub ppps: bool,
+    pub ports: Vec<PortView>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PortView {
+    pub port: u32,
+    pub connected: bool,
+    pub status: &'static str,
+    /// What this application asked of the port this session, if anything.
+    ///
+    /// **Not an observation.** Nothing on Windows reports port power, so absent
+    /// means "never switched by us" and never "on". See `wuim_core::ppps`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub switched: Option<&'static str>,
+}
+
 /// What was last known about a device, for [`DeviceView::from_row`] to fall
 /// back on where the live value has gone.
 ///
@@ -146,6 +196,7 @@ pub struct SettingsView {
     pub start_with_windows: bool,
     pub auto_attach: bool,
     pub auto_attach_rules: Vec<Rule>,
+    pub vhfilter_path: String,
     pub told_about_tray: bool,
 }
 
@@ -158,6 +209,7 @@ impl From<&Settings> for SettingsView {
             start_with_windows: settings.start_with_windows,
             auto_attach: settings.auto_attach,
             auto_attach_rules: settings.auto_attach_rules.clone(),
+            vhfilter_path: settings.vhfilter_path.clone(),
             told_about_tray: settings.told_about_tray,
         }
     }
@@ -172,6 +224,7 @@ impl From<SettingsView> for Settings {
             start_with_windows: view.start_with_windows,
             auto_attach: view.auto_attach,
             auto_attach_rules: view.auto_attach_rules,
+            vhfilter_path: view.vhfilter_path,
             told_about_tray: view.told_about_tray,
         }
         // Whatever the frontend sent, the stored list holds no blanks and no
@@ -498,7 +551,7 @@ mod tests {
     fn settings_come_back_from_what_the_frontend_sends() {
         let sent = r#"{"autoIdentify": false, "autoExclude": ["1a86:7523"],
                        "confirmBeforeIdentify": false, "startWithWindows": true,
-                       "autoAttach": true, "toldAboutTray": true,
+                       "autoAttach": true, "toldAboutTray": true, "vhfilterPath": "",
                        "autoAttachRules": [{"kind": "vid_pid", "value": "1a86:7523"},
                                            {"kind": "vid_pid", "value": "1A86:7523"}]}"#;
         let view: SettingsView = serde_json::from_str(sent).unwrap();

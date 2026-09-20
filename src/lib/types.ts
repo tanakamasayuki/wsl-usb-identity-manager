@@ -121,6 +121,8 @@ export interface Settings {
   autoAttach: boolean;
   /** What to attach automatically. Empty attaches nothing. */
   autoAttachRules: AutoAttachRule[];
+  /** Where `vhfilter.exe` is, when it is not somewhere already searched. */
+  vhfilterPath: string;
   /** Whether closing to the tray has been explained once. */
   toldAboutTray: boolean;
 }
@@ -136,6 +138,50 @@ export interface TrayView {
   openLabel: string;
   settingsLabel: string;
   quitLabel: string;
+}
+
+/** One port of a hub. Mirrors `PortView` in src-tauri/src/view.rs. */
+export interface PortView {
+  port: number;
+  connected: boolean;
+  /** The hub's `USB_CONNECTION_STATUS`, e.g. `DeviceConnected`. */
+  status: string;
+  /**
+   * What this application asked of the port this session: `"off"`, `"on"`, or
+   * absent.
+   *
+   * **Not an observation.** Nothing on Windows reports port power, so absent
+   * means "never switched by us" and never "the port is on".
+   */
+  switched?: "off" | "on";
+}
+
+/** One hub. Mirrors `HubView`. */
+export interface HubView {
+  instanceId: string;
+  name: string;
+  locationPath?: string;
+  /**
+   * The hub advertises per-port power switching. Hubs that claim it and do
+   * nothing are common, so this gates the controls being offered and promises
+   * nothing about what they will achieve.
+   */
+  ppps: boolean;
+  ports: PortView[];
+}
+
+/** The hub tree. Mirrors `TopologyView`. */
+export interface TopologyView {
+  hubs: HubView[];
+  /** Where `vhfilter.exe` was found. Absent means per-port power is unavailable. */
+  vhfilter?: string;
+  /**
+   * How it was arrived at: `searched` means it was found without anything being
+   * set up, `configured` means the path below pointed at it.
+   */
+  vhfilterHow?: "configured" | "searched";
+  /** The directories searched, so the interface can name them. */
+  vhfilterSearchPath: string[];
 }
 
 export interface StoredSettings {

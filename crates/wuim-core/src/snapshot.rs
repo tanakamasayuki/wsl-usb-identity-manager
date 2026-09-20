@@ -7,6 +7,7 @@ use anyhow::Result;
 use serde::Serialize;
 use std::collections::HashMap;
 
+use crate::hub::{self, HubPort};
 use crate::instance_id::InstanceId;
 use crate::usbipd::{self, SharingState, UsbipdDevice};
 use crate::windevice::{self, WinUsbDevice, strip_com_suffix};
@@ -85,6 +86,20 @@ impl IdentityBasis {
     }
 }
 
+/// One hub, with what it says about its own ports.
+///
+/// Separate from the device rows because a hub is where devices hang rather than
+/// something to bind or attach, and because its **ports** are the point: a port
+/// with nothing in it has no device node, so only the hub can report it.
+#[derive(Debug, Clone, Serialize)]
+pub struct HubNode {
+    pub instance_id: String,
+    pub name: String,
+    /// The hub's own position, for placing it in the tree.
+    pub location_path: Option<String>,
+    pub ports: Vec<HubPort>,
+}
+
 /// The device list at one point in time.
 #[derive(Debug, Clone, Serialize)]
 pub struct Snapshot {
@@ -93,6 +108,10 @@ pub struct Snapshot {
     /// Nodes Windows exposes but usbipd does not list: hubs, interface nodes of
     /// composite devices, and stubs of attached devices.
     pub other_nodes: Vec<WinUsbDevice>,
+    /// Every hub, root or otherwise. Empty unless the snapshot was captured
+    /// from a real machine: reading it is I/O, so [`Snapshot::join`] leaves it
+    /// alone and stays a pure function.
+    pub hubs: Vec<HubNode>,
 }
 
 impl Snapshot {
@@ -100,7 +119,36 @@ impl Snapshot {
     pub fn capture() -> Result<Self> {
         let windows = windevice::enumerate_present_usb_devices()?;
         let usbipd = usbipd::query()?;
-        Ok(Self::join(windows, usbipd))
+        let mut snapshot = Self::join(windows, usbipd);
+        snapshot.hubs = snapshot.read_hubs();
+        Ok(snapshot)
+    }
+
+    /// Asks every enumerated node whether it is a hub, and what its ports say.
+    ///
+    /// Offering the question to everything rather than guessing from a driver
+    /// name or a missing VID/PID: the test is whether the node answers the hub
+    /// IOCTLs, which is exactly what the caller needs it to do.
+    fn read_hubs(&self) -> Vec<HubNode> {
+        let candidates = self
+            .devices
+            .iter()
+            .filter_map(|row| row.windows.as_ref())
+            .chain(self.other_nodes.iter());
+
+        let mut hubs: Vec<HubNode> = candidates
+            .filter_map(|node| {
+                let ports = hub::ports(&node.instance_id.raw)?;
+                Some(HubNode {
+                    instance_id: node.instance_id.raw.clone(),
+                    name: node.display_name().to_owned(),
+                    location_path: node.location_paths.first().cloned(),
+                    ports,
+                })
+            })
+            .collect();
+        hubs.sort_by(|a, b| a.location_path.cmp(&b.location_path));
+        hubs
     }
 
     /// Joins the two enumerations. Kept free of I/O so it can be tested.
@@ -162,6 +210,7 @@ impl Snapshot {
         Self {
             devices,
             other_nodes,
+            hubs: Vec::new(),
         }
     }
 

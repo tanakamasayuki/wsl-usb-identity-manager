@@ -35,6 +35,7 @@ fn main() -> Result<()> {
     match command {
         "list" => list::run(rest),
         "probe" => probe::run(rest),
+        "hubports" => hubports(rest),
         other => {
             eprintln!("unknown command: {other}");
             print_help();
@@ -55,4 +56,21 @@ fn print_help() {
     println!("  wuim probe <target> --yes    skip the confirmation");
     println!();
     println!("A probe has side effects. It runs only when asked for explicitly.");
+}
+
+fn hubports(args: &[String]) -> Result<()> {
+    let id = args.first().map(String::as_str).unwrap_or("");
+    let Some(ports) = wuim_core::hub::ports(id) else {
+        println!("  {id} is not a hub");
+        return Ok(());
+    };
+    for p in ports {
+        println!(
+            "  port {:<2} {:<24} {}",
+            p.port,
+            p.status_name,
+            p.vid_pid.unwrap_or_default()
+        );
+    }
+    Ok(())
 }

@@ -15,7 +15,9 @@
 pub mod autoattach;
 pub mod autostart;
 pub mod elevate;
+pub mod hub;
 pub mod instance_id;
+pub mod ppps;
 pub mod registry;
 pub mod shell_open;
 pub mod single_instance;

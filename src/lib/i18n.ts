@@ -10,6 +10,11 @@
 const en = {
   "toolbar.refresh": "Refresh",
   "toolbar.settings": "Settings",
+  "toolbar.flat": "List",
+  "toolbar.flat.hint": "One row per device, filtered by the tabs.",
+  "toolbar.tree": "Tree",
+  "toolbar.tree.hint":
+    "Switches between the flat list and the hub tree. The tree shows which socket each device is in and what shares its hub, including ports with nothing in them.",
   "toolbar.auto_attach": "Auto-attach",
   "toolbar.on": "ON",
   "toolbar.off": "OFF",
@@ -36,6 +41,7 @@ const en = {
   "col.transport": "USB serial number",
   "col.target": "Board",
   "col.auto": "Auto",
+  "col.power": "Power",
 
   "state.shared": "Shared",
   "state.attached": "In WSL",
@@ -48,6 +54,23 @@ const en = {
     "This adapter reports no serial number, so its own identity rests on which port it is in.",
 
   "target.hint": "Read from the board itself, so it follows the board between adapters and ports.",
+  "tree.empty": "empty",
+  "tree.filtered": "(not in this tab)",
+  "tree.power.all_off": "All off",
+  "tree.power.all_off.hint": "Cuts the power to every port of this hub, one port at a time — vhfilter has no whole-hub form.",
+  "tree.power.all_on": "All on",
+  "tree.power.all_on.hint": "Restores the power to every port of this hub.",
+  "tree.unplaced":
+    "Not on a port: handed to WSL, or a sharing record with nothing plugged in",
+  "tree.power.cut": "OFF",
+  "tree.power.cut.hint":
+    "Cuts this port's power through vhfilter. Whatever is plugged into it loses power at once.",
+  "tree.power.on": "ON",
+  "tree.power.on.hint":
+    "Restores this port's power. Offered whatever the port is doing: nothing on Windows reports the power state, so this is a request rather than a toggle.",
+  "tree.power.off": "OFF",
+  "tree.power.off.hint":
+    "This application switched this port off. Windows is not told when a port loses power, so it goes on reporting the device as present — and nothing here can confirm the port is actually off. The record is forgotten when the application closes or the hub is unplugged.",
   "target.hint.usb_serial":
     "Named by the board's own USB descriptors: the VID:PID says which model, the serial number says which unit. Nothing was sent to the board.",
   "id_source.target-mac": "read from the chip's eFuse",
@@ -128,6 +151,15 @@ const en = {
   "usbipd.old.what":
     "Found {version}. The state it reports may be shaped differently, so some devices can read wrongly. Updating usbipd-win is the fix.",
 
+  "settings.ppps": "Per-port power",
+  "settings.ppps.detected": "Found automatically",
+  "settings.ppps.from_path": "Found at the path below",
+  "settings.ppps.missing":
+    "vhfilter.exe was not found, so hub ports cannot be switched. It is VirtualHere's, downloaded as a single file from virtualhere.com; put it in one of these folders, or give its path below.",
+  "settings.ppps.setup": "Write a setup script",
+  "settings.ppps.setup.note":
+    "Writes get-vhfilter.bat beside the log and opens the folder. Run it and it removes any old copy, downloads vhfilter from virtualhere.com, checks that VirtualHere signed it, and installs the filter driver. It asks for administrator rights itself, and Windows needs restarting afterwards.",
+  "settings.ppps.path": "Path to vhfilter.exe (optional)",
   "settings.remembered": "Remembered devices",
   "settings.remembered.count": "{count} remembered",
   "settings.remembered.note":
@@ -203,6 +235,7 @@ const en = {
   "busy.attach": "Attaching to WSL…",
   "busy.detach": "Detaching from WSL…",
   "busy.probe": "Identifying…",
+  "busy.power": "Switching port power…",
   "busy.admin": "Waiting for the administrator prompt…",
   "menu.identify": "Identify…",
   "menu.copy_instance_id": "Copy instance ID",
@@ -243,6 +276,11 @@ type Key = keyof typeof en;
 const ja: Record<Key, string> = {
   "toolbar.refresh": "更新",
   "toolbar.settings": "設定",
+  "toolbar.flat": "一覧",
+  "toolbar.flat.hint": "1 デバイス 1 行。上のタブで絞り込みます。",
+  "toolbar.tree": "ツリー",
+  "toolbar.tree.hint":
+    "一覧表示とハブのツリー表示を切り替えます。ツリーでは、どのポートに挿さっているか、同じハブに何がいるかが判ります。空きポートも表示します。",
   "toolbar.auto_attach": "自動 Attach",
   "toolbar.on": "ON",
   "toolbar.off": "OFF",
@@ -269,6 +307,7 @@ const ja: Record<Key, string> = {
   "col.transport": "USB シリアル番号",
   "col.target": "ボード",
   "col.auto": "自動",
+  "col.power": "給電",
 
   "state.shared": "共有可能",
   "state.attached": "WSL 接続中",
@@ -281,6 +320,22 @@ const ja: Record<Key, string> = {
     "このアダプタはシリアル番号を申告しないため、アダプタ自身もポート位置でしか特定できません。",
 
   "target.hint": "ボード自身から読み出した識別子です。アダプタやポートを変えても追随します。",
+  "tree.empty": "空き",
+  "tree.filtered": "（このタブの対象外）",
+  "tree.power.all_off": "全 OFF",
+  "tree.power.all_off.hint": "このハブの全ポートの給電を切ります。vhfilter にハブ単位の指定が無いため、1 ポートずつ実行します。",
+  "tree.power.all_on": "全 ON",
+  "tree.power.all_on.hint": "このハブの全ポートの給電を戻します。",
+  "tree.unplaced": "ポート上にないもの（WSL へ接続中、または共有記録のみ）",
+  "tree.power.cut": "OFF",
+  "tree.power.cut.hint":
+    "vhfilter でこのポートの給電を切ります。挿さっているものは即座に電源を失います。",
+  "tree.power.on": "ON",
+  "tree.power.on.hint":
+    "このポートの給電を戻します。状態に関わらず常に押せます。給電状態を知る手段が無いため、トグルではなく要求です。",
+  "tree.power.off": "OFF",
+  "tree.power.off.hint":
+    "このアプリがこのポートを OFF にしました。Windows はポートの給電断を知らされないため、デバイスは存在するものとして表示され続けます。実際に OFF かどうかを確認する手段はありません。この記録はアプリの終了かハブの取り外しで失われます。",
   "target.hint.usb_serial":
     "ボード自身の USB ディスクリプタによる識別です。VID:PID が機種を、シリアル番号が個体を示します。ボードには何も送っていません。",
   "id_source.target-mac": "チップの eFuse から読み出し",
@@ -360,6 +415,15 @@ const ja: Record<Key, string> = {
   "usbipd.old.what":
     "検出したのは {version} です。state の構造が異なる可能性があり、一部のデバイスが正しく読めないことがあります。usbipd-win の更新で解決します。",
 
+  "settings.ppps": "ポート給電の制御",
+  "settings.ppps.detected": "自動検出しました",
+  "settings.ppps.from_path": "下記の指定パスで見つかりました",
+  "settings.ppps.missing":
+    "vhfilter.exe が見つからないため、ハブのポート給電を操作できません。VirtualHere の配布物で、virtualhere.com から単体のファイルとして入手します。下記のいずれかのフォルダに置くか、パスを指定してください。",
+  "settings.ppps.setup": "取得スクリプトを作成",
+  "settings.ppps.setup.note":
+    "ログと同じフォルダに get-vhfilter.bat を作成し、フォルダを開きます。実行すると、古いものを削除し、virtualhere.com から vhfilter をダウンロードし、VirtualHere の署名を検証してから、フィルタドライバをインストールします。管理者権限はスクリプト自身が要求します。完了後に Windows の再起動が必要です。",
+  "settings.ppps.path": "vhfilter.exe のパス（任意）",
   "settings.remembered": "記憶しているデバイス",
   "settings.remembered.count": "{count} 件",
   "settings.remembered.note":
@@ -435,6 +499,7 @@ const ja: Record<Key, string> = {
   "busy.attach": "WSL に接続しています…",
   "busy.detach": "WSL から切り離しています…",
   "busy.probe": "識別しています…",
+  "busy.power": "ポート給電を切り替えています…",
   "busy.admin": "管理者の許可を待っています…",
   "menu.identify": "識別…",
   "menu.copy_instance_id": "インスタンス ID をコピー",
