@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.2.1 - 2026-09-21
+
 - (EN) Remembers the window size, the filter tab and whether the list was left in tree order. The window **position** is deliberately not remembered: put back on a machine whose displays have changed, a window lands off-screen, and one nobody can see is worse than one that opens in the middle. The size is applied before the window is shown, so a restored size is not a visible jump.
 - (JA) ウィンドウのサイズ、絞り込みタブ、一覧かツリーかを覚える。**位置は意図的に覚えない** —— ディスプレイ構成が変わった後に前回の位置へ戻すと画面外に出てしまい、見えないウィンドウは真ん中に出るウィンドウより悪い。サイズは表示前に適用するので、復元が跳ねて見えることはない。
 
