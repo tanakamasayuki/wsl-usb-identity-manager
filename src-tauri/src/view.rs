@@ -36,6 +36,12 @@ pub struct DeviceView {
     pub location_path: Option<String>,
     /// The same path as a short hub-port chain, `1-3-3`.
     pub port_chain: Option<String>,
+    /// The hub this device is plugged into, and the port number on it. Read
+    /// from the device tree, so a `usbipd` bind does not take it away.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_instance_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port_address: Option<u32>,
 
     // usbipd state, pre-computed so the table does not have to derive it.
     pub state: &'static str,
@@ -123,6 +129,11 @@ pub struct HubView {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub location_path: Option<String>,
+    /// The node this hub hangs off, and the port number on it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_instance_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port_address: Option<u32>,
     /// `1a86:8094`, absent on a root hub.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vid_pid: Option<String>,
@@ -352,6 +363,8 @@ impl DeviceView {
             com_port: row.com_port().map(str::to_owned),
             location_path: row.location_path().map(str::to_owned),
             port_chain: row.windows.as_ref().and_then(|w| w.port_chain()),
+            parent_instance_id: row.parent_instance_id().map(str::to_owned),
+            port_address: row.port_address(),
 
             state: row.sharing_state().label(),
             present: usbipd.is_some_and(|d| d.is_connected()),

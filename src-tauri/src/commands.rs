@@ -303,6 +303,8 @@ pub async fn read_topology() -> Result<TopologyView, String> {
                     instance_id: h.instance_id.clone(),
                     name: h.name.clone(),
                     location_path: h.location_path.clone(),
+                    parent_instance_id: h.parent_instance_id.clone(),
+                    port_address: h.address,
                     vid_pid: h.vid_pid.clone(),
                     vendor,
                     usb_product,

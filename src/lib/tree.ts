@@ -31,28 +31,27 @@ export type TreeRow =
   /** A socket with nothing in it. Only hubs whose power can be switched get one. */
   | { kind: "port"; depth: number; hub: HubView; port: PortView };
 
-/** The path one hop up: `…#USB(2)#USB(1)` is plugged into `…#USB(2)`. */
-function parentOf(path: string): string | null {
-  const at = Math.max(path.lastIndexOf("#USB("), path.lastIndexOf("#USBMI("));
-  return at > 0 ? path.slice(0, at) : null;
-}
-
-/** The port number a path ends on, when it ends on one. */
-function portOf(path: string): number | null {
-  const m = /#USB\((\d+)\)$/.exec(path);
-  return m ? Number(m[1]) : null;
+/**
+ * Instance ids are compared case-insensitively.
+ *
+ * Windows is not consistent about the case of its own: the same hub is
+ * `4&945A1EC` as a device's parent and `4&945a1ec` as its own id. Comparing them
+ * literally puts every device on that hub in the wrong place, and does it
+ * silently.
+ */
+function key(instanceId: string | undefined | null): string {
+  return (instanceId ?? "").toLowerCase();
 }
 
 /**
  * Builds the ordered rows.
  *
- * **The hierarchy comes from the location paths, not from the hub enumeration.**
- * A hub that does not answer its IOCTLs — or one Windows lists in a way this
- * application did not expect — would otherwise take everything plugged into it
- * out of the tree and drop it, unindented and without a port number, into the
- * list of things that could not be placed. The paths are enough on their own;
- * what the hubs add is the empty sockets and the power controls, which is a
- * bonus rather than a prerequisite.
+ * **The hierarchy comes from the device tree — each device's parent node and
+ * port number — and not from location paths.** A location path is a formatted
+ * string a device can stop publishing, which is what sharing one with `usbipd`
+ * does: the device stays exactly where it is, its path goes, and anything built
+ * on the path drops it out of the tree and into the list of things that could
+ * not be placed. The parent and the port come from the tree itself and survive.
  *
  * **Anything on a port is listed, whatever the tabs say.** The tree is about
  * where things are plugged in, and a device hidden because the tab happens not
@@ -66,88 +65,82 @@ export function buildTree(
   devices: DeviceView[],
   shown: DeviceView[],
 ): TreeRow[] {
-  const hubByPath = new Map(
-    topology.hubs.filter((h) => h.locationPath).map((h) => [h.locationPath!, h] as const),
-  );
-  const hubByInstance = new Map(topology.hubs.map((h) => [h.instanceId, h] as const));
+  const hubs = new Map(topology.hubs.map((h) => [key(h.instanceId), h] as const));
+  const hubDevice = new Map<string, DeviceView>();
 
-  // Every node that has a place, by path. Devices win over hub entries for the
-  // same path: the device row carries the columns, the hub entry only the ports.
-  const deviceByPath = new Map<string, DeviceView>();
+  /**
+   * What hangs off each node.
+   *
+   * Hubs are gathered as well as devices, and not only through them: `usbipd`
+   * does not track hubs, so a hub usually has no device row at all and would be
+   * invisible to a walk that only followed devices.
+   */
+  type Child = { device: DeviceView | null; hub: HubView | null; port: number | null };
+  const children = new Map<string, Child[]>();
+  const add = (parent: string, child: Child) =>
+    children.set(parent, [...(children.get(parent) ?? []), child]);
+
   for (const device of devices) {
-    if (device.locationPath) deviceByPath.set(device.locationPath, device);
+    if (hubs.has(key(device.instanceId))) hubDevice.set(key(device.instanceId), device);
+    const parent = key(device.parentInstanceId);
+    if (!parent) continue;
+    const hub = hubs.get(key(device.instanceId)) ?? null;
+    add(parent, { device, hub, port: device.portAddress ?? null });
   }
-
-  const paths = new Set<string>([...deviceByPath.keys(), ...hubByPath.keys()]);
-  const children = new Map<string, string[]>();
-  const roots: string[] = [];
-  for (const path of [...paths].sort()) {
-    const parent = parentOf(path);
-    if (parent && paths.has(parent)) {
-      children.set(parent, [...(children.get(parent) ?? []), path]);
-    } else {
-      roots.push(path);
-    }
+  for (const hub of topology.hubs) {
+    // Only the ones no device row already introduced, so a hub `usbipd` does
+    // happen to track is not listed twice.
+    if (hubDevice.has(key(hub.instanceId))) continue;
+    const parent = key(hub.parentInstanceId);
+    if (!parent) continue;
+    add(parent, { device: null, hub, port: hub.portAddress ?? null });
   }
 
   const rows: TreeRow[] = [];
   const placed = new Set<string>();
 
-  function emit(path: string, depth: number) {
-    const device = deviceByPath.get(path) ?? null;
-    const hub =
-      hubByPath.get(path) ?? (device ? (hubByInstance.get(device.instanceId) ?? null) : null);
-    const port = portOf(path);
+  function emitHub(hub: HubView, depth: number, onPort: number | null) {
+    rows.push({
+      kind: "hub",
+      depth,
+      hub,
+      device: hubDevice.get(key(hub.instanceId)) ?? null,
+      port: onPort,
+    });
+    const mine = children.get(key(hub.instanceId)) ?? [];
+    const done = new Set<Child>();
 
-    if (hub) {
-      rows.push({ kind: "hub", depth, hub, device, port });
-      if (device) placed.add(device.instanceId);
-      emitChildren(hub, path, depth + 1);
-      return;
-    }
-
-    if (device) {
-      const parentHub = hubByPath.get(parentOf(path) ?? "") ?? null;
-      rows.push({
-        kind: "device",
-        depth,
-        device,
-        hub: parentHub,
-        port: parentHub?.ports.find((p) => p.port === port) ?? null,
-      });
-      placed.add(device.instanceId);
-    }
-    for (const child of children.get(path) ?? []) emit(child, depth + 1);
-  }
-
-  /**
-   * A hub's children, in port order, with its empty sockets among them.
-   *
-   * Ordering by the hub's own ports rather than by path keeps port 2 between
-   * port 1 and port 3 even when only some of them have anything in them.
-   */
-  function emitChildren(hub: HubView, path: string, depth: number) {
-    const seen = new Set<string>();
-    for (const port of hub.ports) {
-      const childPath = `${path}#USB(${port.port})`;
-      seen.add(childPath);
-      if (paths.has(childPath)) {
-        emit(childPath, depth);
-      } else if (hub.ppps) {
-        // Only where the power can be switched: on a 16-port root hub the empty
-        // rows are noise, and on a switchable hub they are the thing being
-        // switched.
-        rows.push({ kind: "port", depth, hub, port });
+    function emitChild(child: Child, port: PortView | null, at: number) {
+      done.add(child);
+      if (child.device) placed.add(child.device.instanceId);
+      if (child.hub) emitHub(child.hub, at, child.port);
+      else if (child.device) {
+        rows.push({ kind: "device", depth: at, device: child.device, hub, port });
       }
     }
-    // Anything the hub did not account for — an interface node, or a port it
-    // did not report — still belongs under it.
-    for (const child of children.get(path) ?? []) {
-      if (!seen.has(child)) emit(child, depth);
+
+    for (const port of hub.ports) {
+      const here = mine.filter((c) => c.port === port.port);
+      for (const child of here) emitChild(child, port, depth + 1);
+      // Only where the power can be switched: on a 16-port root hub the empty
+      // rows are noise, and on a switchable hub they are the thing being
+      // switched.
+      if (here.length === 0 && hub.ppps) {
+        rows.push({ kind: "port", depth: depth + 1, hub, port });
+      }
+    }
+
+    // Anything the hub did not account for — a port it did not report, or a
+    // child with no port number — still belongs under it rather than adrift.
+    for (const child of mine) {
+      if (!done.has(child)) emitChild(child, null, depth + 1);
     }
   }
 
-  for (const root of roots) emit(root, 0);
+  // A root is a hub whose own parent is not itself a hub we know about.
+  for (const hub of topology.hubs) {
+    if (!hubs.has(key(hub.parentInstanceId))) emitHub(hub, 0, null);
+  }
 
   // Attached to WSL, or a sharing record with nothing plugged in: no port to sit
   // on, so they go at the end rather than hung off a guess.

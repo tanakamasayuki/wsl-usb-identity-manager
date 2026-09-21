@@ -8,16 +8,17 @@ use anyhow::{Result, anyhow};
 use serde::Serialize;
 use windows::Win32::Devices::DeviceAndDriverInstallation::{
     CM_GETIDLIST_FILTER_ENUMERATOR, CM_GETIDLIST_FILTER_PRESENT, CM_Get_Child,
-    CM_Get_DevNode_PropertyW, CM_Get_Device_ID_List_SizeW, CM_Get_Device_ID_ListW, CM_Get_Sibling,
+    CM_Get_DevNode_PropertyW, CM_Get_Device_ID_List_SizeW, CM_Get_Device_ID_ListW,
+    CM_Get_Device_ID_Size, CM_Get_Device_IDW, CM_Get_Parent, CM_Get_Sibling,
     CM_LOCATE_DEVNODE_NORMAL, CM_Locate_DevNodeW, CM_Open_DevNode_Key, CM_REGISTRY_HARDWARE,
     CONFIGRET, CR_BUFFER_SMALL, CR_SUCCESS,
 };
 use windows::Win32::Devices::Properties::{
-    DEVPKEY_Device_BusReportedDeviceDesc, DEVPKEY_Device_ContainerId, DEVPKEY_Device_DeviceDesc,
-    DEVPKEY_Device_DriverVersion, DEVPKEY_Device_FriendlyName, DEVPKEY_Device_HardwareIds,
-    DEVPKEY_Device_LocationPaths, DEVPKEY_Device_Manufacturer, DEVPKEY_Device_ProblemCode,
-    DEVPKEY_Device_Service, DEVPROP_TYPE_GUID, DEVPROP_TYPE_STRING, DEVPROP_TYPE_STRING_LIST,
-    DEVPROP_TYPE_UINT32, DEVPROPTYPE,
+    DEVPKEY_Device_Address, DEVPKEY_Device_BusReportedDeviceDesc, DEVPKEY_Device_ContainerId,
+    DEVPKEY_Device_DeviceDesc, DEVPKEY_Device_DriverVersion, DEVPKEY_Device_FriendlyName,
+    DEVPKEY_Device_HardwareIds, DEVPKEY_Device_LocationPaths, DEVPKEY_Device_Manufacturer,
+    DEVPKEY_Device_ProblemCode, DEVPKEY_Device_Service, DEVPROP_TYPE_GUID, DEVPROP_TYPE_STRING,
+    DEVPROP_TYPE_STRING_LIST, DEVPROP_TYPE_UINT32, DEVPROPTYPE,
 };
 use windows::Win32::Foundation::DEVPROPKEY;
 use windows::Win32::System::Registry::{HKEY, KEY_READ, REG_SZ, RegCloseKey, RegQueryValueExW};
@@ -45,6 +46,17 @@ pub struct WinUsbDevice {
     /// `DEVPKEY_Device_LocationPaths`: the stable identifier of the physical port
     /// (finding F2). Must never be persisted as a device identifier (R7.1).
     pub location_paths: Vec<String>,
+    /// The device node this one hangs off — the hub, for anything on a hub.
+    ///
+    /// Read straight from the device tree rather than derived from a location
+    /// path, because a location path is a formatted string a device can stop
+    /// publishing while the tree still knows exactly where it is.
+    pub parent_instance_id: Option<String>,
+    /// `DEVPKEY_Device_Address`: the port number on [`Self::parent_instance_id`].
+    ///
+    /// The same numbering the hub itself uses, so it lines up with
+    /// [`crate::hub::HubPort::port`] and with what `vhfilter` takes.
+    pub address: Option<u32>,
     /// COM number, for display only (R7.1).
     pub com_port: Option<String>,
     /// The device revision the descriptor reports, from the `REV_xxxx` in the
@@ -191,11 +203,34 @@ fn load_device(instance_id: &str) -> Option<WinUsbDevice> {
         service: prop_string(devinst, &DEVPKEY_Device_Service),
         container_id: prop_container_id(devinst),
         location_paths: prop_string_list(devinst, &DEVPKEY_Device_LocationPaths),
+        parent_instance_id: parent_instance_id(devinst),
+        address: prop_u32(devinst, &DEVPKEY_Device_Address),
         com_port: find_com_port(devinst),
         revision: revision(devinst),
         driver_version: prop_string(devinst, &DEVPKEY_Device_DriverVersion),
         problem_code: prop_u32(devinst, &DEVPKEY_Device_ProblemCode).filter(|&c| c != 0),
     })
+}
+
+/// The instance id of a device node's parent.
+fn parent_instance_id(devinst: u32) -> Option<String> {
+    let mut parent = 0u32;
+    // SAFETY: `devinst` came from CfgMgr and is used only for this call.
+    if unsafe { CM_Get_Parent(&mut parent, devinst, 0) } != CR_SUCCESS {
+        return None;
+    }
+    let mut len = 0u32;
+    // SAFETY: asking for the length first, as the API expects.
+    if unsafe { CM_Get_Device_ID_Size(&mut len, parent, 0) } != CR_SUCCESS {
+        return None;
+    }
+    let mut buffer = vec![0u16; len as usize + 1];
+    // SAFETY: the buffer is sized by the call above, plus the NUL.
+    if unsafe { CM_Get_Device_IDW(parent, &mut buffer, 0) } != CR_SUCCESS {
+        return None;
+    }
+    let end = buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len());
+    Some(String::from_utf16_lossy(&buffer[..end]))
 }
 
 fn locate_devnode(instance_id: &str) -> Option<u32> {

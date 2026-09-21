@@ -14,6 +14,14 @@ export interface DeviceView {
   locationPath: string | null;
   /** The same path as a short hub-port chain, `1-3-3`. */
   portChain: string | null;
+  /**
+   * The hub this device is plugged into, and the port number on it.
+   *
+   * Read from the device tree, so sharing the device with `usbipd` — which can
+   * take its location path away — does not move it out of the tree.
+   */
+  parentInstanceId?: string;
+  portAddress?: number;
 
   state: "not shared" | "shared" | "attached" | "absent";
   /** usbipd still reports a bus id. True even while attached. */
@@ -161,6 +169,9 @@ export interface HubView {
   instanceId: string;
   name: string;
   locationPath?: string;
+  /** The node this hub hangs off, and the port number on it. */
+  parentInstanceId?: string;
+  portAddress?: number;
   /** `1a86:8094`, absent on a root hub. */
   vidPid?: string;
   /** From the USB ID Repository, the same source the device rows use. */

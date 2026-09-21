@@ -46,6 +46,20 @@ impl DeviceRow {
 
     /// The stable identifier of the physical port (finding F2). Shown and
     /// matched against, never persisted as a device identity.
+    /// The node this device hangs off, and the port number on it.
+    ///
+    /// The join for the hub tree. Taken from the device tree rather than from a
+    /// location path: a path is a formatted string a device can stop publishing
+    /// — which is what a `usbipd` bind does — while the tree still knows
+    /// exactly where the device is.
+    pub fn parent_instance_id(&self) -> Option<&str> {
+        self.windows.as_ref()?.parent_instance_id.as_deref()
+    }
+
+    pub fn port_address(&self) -> Option<u32> {
+        self.windows.as_ref()?.address
+    }
+
     pub fn location_path(&self) -> Option<&str> {
         self.windows
             .as_ref()?
@@ -97,6 +111,9 @@ pub struct HubNode {
     pub name: String,
     /// The hub's own position, for placing it in the tree.
     pub location_path: Option<String>,
+    /// The node this hub hangs off, and the port number on it.
+    pub parent_instance_id: Option<String>,
+    pub address: Option<u32>,
     /// `1a86:8094`. Absent on a root hub, which is part of the controller
     /// rather than a device with a vendor.
     pub vid_pid: Option<String>,
@@ -150,6 +167,8 @@ impl Snapshot {
                     instance_id: node.instance_id.raw.clone(),
                     name: node.display_name().to_owned(),
                     location_path: node.location_paths.first().cloned(),
+                    parent_instance_id: node.parent_instance_id.clone(),
+                    address: node.address,
                     vid_pid: node.instance_id.vid_pid_string(),
                     manufacturer: node.manufacturer.clone(),
                     driver_version: node.driver_version.clone(),
