@@ -97,6 +97,13 @@ pub struct HubNode {
     pub name: String,
     /// The hub's own position, for placing it in the tree.
     pub location_path: Option<String>,
+    /// `1a86:8094`. Absent on a root hub, which is part of the controller
+    /// rather than a device with a vendor.
+    pub vid_pid: Option<String>,
+    /// `DEVPKEY_Device_Manufacturer`, which for a hub is often the only thing
+    /// naming who made it.
+    pub manufacturer: Option<String>,
+    pub driver_version: Option<String>,
     pub ports: Vec<HubPort>,
 }
 
@@ -143,6 +150,9 @@ impl Snapshot {
                     instance_id: node.instance_id.raw.clone(),
                     name: node.display_name().to_owned(),
                     location_path: node.location_paths.first().cloned(),
+                    vid_pid: node.instance_id.vid_pid_string(),
+                    manufacturer: node.manufacturer.clone(),
+                    driver_version: node.driver_version.clone(),
                     ports,
                 })
             })

@@ -55,6 +55,7 @@ const en = {
 
   "target.hint": "Read from the board itself, so it follows the board between adapters and ports.",
   "tree.empty": "empty",
+  "tree.ports": "{count} ports",
   "tree.power.all_off": "All off",
   "tree.power.all_off.hint": "Cuts the power to every port of this hub, one port at a time — vhfilter has no whole-hub form.",
   "tree.power.all_on": "All on",
@@ -324,6 +325,7 @@ const ja: Record<Key, string> = {
 
   "target.hint": "ボード自身から読み出した識別子です。アダプタやポートを変えても追随します。",
   "tree.empty": "空き",
+  "tree.ports": "{count} ポート",
   "tree.power.all_off": "全 OFF",
   "tree.power.all_off.hint": "このハブの全ポートの給電を切ります。vhfilter にハブ単位の指定が無いため、1 ポートずつ実行します。",
   "tree.power.all_on": "全 ON",

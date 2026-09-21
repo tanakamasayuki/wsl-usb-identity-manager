@@ -9,6 +9,7 @@ use std::time::Instant;
 
 use wuim_core::UsbIds;
 use wuim_core::autostart;
+use wuim_core::instance_id::InstanceId;
 use wuim_core::ppps;
 use wuim_core::shell_open;
 use wuim_core::snapshot::{DeviceRow, Snapshot};
@@ -281,29 +282,48 @@ pub async fn read_topology() -> Result<TopologyView, String> {
             .map(|h| h.instance_id)
             .collect();
 
+        let ids = usb_ids();
         let hubs = snapshot
             .hubs
             .iter()
-            .map(|h| HubView {
-                ppps: ppps_hubs
-                    .iter()
-                    .any(|id| id.eq_ignore_ascii_case(&h.instance_id)),
-                instance_id: h.instance_id.clone(),
-                name: h.name.clone(),
-                location_path: h.location_path.clone(),
-                ports: h
-                    .ports
-                    .iter()
-                    .map(|p| PortView {
-                        port: p.port,
-                        connected: p.connected,
-                        status: p.status_name,
-                        switched: ppps::recorded(&h.instance_id, p.port).map(|state| match state {
-                            ppps::PortPower::SwitchedOff => "off",
-                            ppps::PortPower::SwitchedOn => "on",
-                        }),
-                    })
-                    .collect(),
+            .map(|h| {
+                // The same lookup a device row gets. A hub is a USB device like
+                // any other, and `1a86:8094` on its own says less than "WCH".
+                let (vendor, usb_product) = match InstanceId::parse(&h.instance_id).vid_pid() {
+                    Some((vid, pid)) => (
+                        ids.vendor(vid).map(str::to_owned),
+                        ids.product(vid, pid).map(str::to_owned),
+                    ),
+                    None => (None, None),
+                };
+                HubView {
+                    ppps: ppps_hubs
+                        .iter()
+                        .any(|id| id.eq_ignore_ascii_case(&h.instance_id)),
+                    instance_id: h.instance_id.clone(),
+                    name: h.name.clone(),
+                    location_path: h.location_path.clone(),
+                    vid_pid: h.vid_pid.clone(),
+                    vendor,
+                    usb_product,
+                    manufacturer: h.manufacturer.clone(),
+                    driver_version: h.driver_version.clone(),
+                    ports: h
+                        .ports
+                        .iter()
+                        .map(|p| PortView {
+                            port: p.port,
+                            connected: p.connected,
+                            status: p.status_name,
+                            switched: ppps::recorded(&h.instance_id, p.port).map(
+                                |state| match state {
+                                    ppps::PortPower::SwitchedOff => "off",
+                                    ppps::PortPower::SwitchedOn => "on",
+                                },
+                            ),
+                        })
+                        .collect(),
+                }
             })
             .collect();
 

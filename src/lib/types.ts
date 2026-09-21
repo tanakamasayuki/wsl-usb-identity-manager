@@ -161,6 +161,14 @@ export interface HubView {
   instanceId: string;
   name: string;
   locationPath?: string;
+  /** `1a86:8094`, absent on a root hub. */
+  vidPid?: string;
+  /** From the USB ID Repository, the same source the device rows use. */
+  vendor?: string;
+  usbProduct?: string;
+  /** What Windows records as the maker, which is sometimes all there is. */
+  manufacturer?: string;
+  driverVersion?: string;
   /**
    * The hub advertises per-port power switching. Hubs that claim it and do
    * nothing are common, so this gates the controls being offered and promises

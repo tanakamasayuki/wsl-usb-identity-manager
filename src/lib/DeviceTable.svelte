@@ -80,6 +80,18 @@
     return identity.idSource === "usb-serial" ? t("target.hint.usb_serial") : t("target.hint");
   }
 
+  /**
+   * Who made a hub, from whichever source has an answer.
+   *
+   * The USB ID Repository first — it is the same source the device rows use, so
+   * one vendor reads the same everywhere. Windows' own manufacturer string is
+   * the fallback, and is often "(標準 USB ハブ)" or the like, which names the
+   * driver rather than the maker; it is better than nothing and no better.
+   */
+  function hubMaker(hub: HubView): string {
+    return hub.vendor ?? hub.manufacturer ?? "";
+  }
+
   /** Whether a probe could answer for this device, so the cell offers one. */
   function identifiable(device: DeviceView): boolean {
     return device.probes.some((p) => p.available);
@@ -283,9 +295,17 @@
             {/if}
             <span class="hub-mark">▣</span>
             <span class="primary">{hub.name}</span>
+            <!-- What made it and how many sockets it has: the two things a
+                 person is looking at a hub row to learn. The name Windows gives
+                 a hub is usually "Generic USB Hub" and says neither. -->
+            <span class="secondary">
+              {[hubMaker(hub), t("tree.ports", { count: hub.ports.length })]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
           </td>
-          <td class="vidpid">{device?.vidPid ?? ""}</td>
-          <td class="transport"></td>
+          <td class="vidpid">{hub.vidPid ?? ""}</td>
+          <td class="transport" title={hub.driverVersion ?? ""}>{hub.usbProduct ?? ""}</td>
           <td class="target"></td>
           <td class="auto"></td>
           <td class="power-col">
@@ -402,8 +422,11 @@
   .state {
     width: 106px;
   }
+  /* Wide enough for the widest it holds - a bus id and a COM number, as
+     `88-88 / COM255` - and no wider. The bus id is two small numbers; the
+     column had been sized as though it were prose. */
   .connection {
-    width: 128px;
+    width: 112px;
     font-variant-numeric: tabular-nums;
   }
   .vidpid {

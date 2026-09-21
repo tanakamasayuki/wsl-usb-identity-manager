@@ -123,6 +123,20 @@ pub struct HubView {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub location_path: Option<String>,
+    /// `1a86:8094`, absent on a root hub.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vid_pid: Option<String>,
+    /// From the USB ID Repository, the same source the device rows use.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vendor: Option<String>,
+    /// From the same source; rarer than the vendor name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usb_product: Option<String>,
+    /// What Windows records as the maker, which is sometimes all there is.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manufacturer: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub driver_version: Option<String>,
     /// True when `vhfilter` lists this hub as able to switch port power. It
     /// means the hub **advertises** the feature and nothing more: hubs that
     /// claim it and do nothing are common.
