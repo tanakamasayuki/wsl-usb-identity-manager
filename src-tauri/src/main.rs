@@ -3,6 +3,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use tauri::Emitter;
+use tauri::Manager;
 use wuim_core::{autostart, shell_open, single_instance, webview2};
 
 mod commands;
@@ -86,6 +87,19 @@ fn main() {
             // Relaunching brings a hidden window back either way (R10.19).
             if let Err(e) = tray::create(app.handle()) {
                 logging::error(&format!("could not create the tray icon: {e:#}"));
+            }
+
+            // Sized before it is shown, so a restored size does not arrive as a
+            // visible jump. The position is not restored — see
+            // `Settings::window_width` for why.
+            let size =
+                state::with(|store| (store.settings.window_width, store.settings.window_height));
+            if let (Some(width), Some(height)) = size
+                && let Some(window) = app.get_webview_window("main")
+                && let Err(e) =
+                    window.set_size(tauri::PhysicalSize::new(width.max(320), height.max(240)))
+            {
+                logging::error(&format!("could not restore the window size: {e}"));
             }
             // Started by the `Run` entry, so the window stays in the tray:
             // signing in is not a request to be interrupted. The window itself

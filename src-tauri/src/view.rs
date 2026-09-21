@@ -221,6 +221,13 @@ pub struct SettingsView {
     pub start_with_windows: bool,
     pub auto_attach: bool,
     pub auto_attach_rules: Vec<Rule>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_width: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_height: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filter: Option<String>,
+    pub tree_view: bool,
     pub vhfilter_path: String,
     pub told_about_tray: bool,
 }
@@ -234,6 +241,10 @@ impl From<&Settings> for SettingsView {
             start_with_windows: settings.start_with_windows,
             auto_attach: settings.auto_attach,
             auto_attach_rules: settings.auto_attach_rules.clone(),
+            window_width: settings.window_width,
+            window_height: settings.window_height,
+            filter: settings.filter.clone(),
+            tree_view: settings.tree_view,
             vhfilter_path: settings.vhfilter_path.clone(),
             told_about_tray: settings.told_about_tray,
         }
@@ -249,6 +260,10 @@ impl From<SettingsView> for Settings {
             start_with_windows: view.start_with_windows,
             auto_attach: view.auto_attach,
             auto_attach_rules: view.auto_attach_rules,
+            window_width: view.window_width,
+            window_height: view.window_height,
+            filter: view.filter,
+            tree_view: view.tree_view,
             vhfilter_path: view.vhfilter_path,
             told_about_tray: view.told_about_tray,
         }
@@ -580,6 +595,7 @@ mod tests {
         let sent = r#"{"autoIdentify": false, "autoExclude": ["1a86:7523"],
                        "confirmBeforeIdentify": false, "startWithWindows": true,
                        "autoAttach": true, "toldAboutTray": true, "vhfilterPath": "",
+                       "treeView": true, "filter": "shared", "windowWidth": 1400,
                        "autoAttachRules": [{"kind": "vid_pid", "value": "1a86:7523"},
                                            {"kind": "vid_pid", "value": "1A86:7523"}]}"#;
         let view: SettingsView = serde_json::from_str(sent).unwrap();
@@ -591,6 +607,12 @@ mod tests {
         assert!(settings.start_with_windows);
         assert!(settings.auto_attach);
         assert!(settings.told_about_tray);
+        // Interface state travels the same way and is kept the same way.
+        assert!(settings.tree_view);
+        assert_eq!(settings.filter.as_deref(), Some("shared"));
+        assert_eq!(settings.window_width, Some(1400));
+        // Absent on the wire stays absent rather than becoming a zero.
+        assert_eq!(settings.window_height, None);
         // The same rule twice is one rule by the time it is stored.
         assert_eq!(settings.auto_attach_rules.len(), 1);
     }

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- (EN) Remembers the window size, the filter tab and whether the list was left in tree order. The window **position** is deliberately not remembered: put back on a machine whose displays have changed, a window lands off-screen, and one nobody can see is worse than one that opens in the middle. The size is applied before the window is shown, so a restored size is not a visible jump.
+- (JA) ウィンドウのサイズ、絞り込みタブ、一覧かツリーかを覚える。**位置は意図的に覚えない** —— ディスプレイ構成が変わった後に前回の位置へ戻すと画面外に出てしまい、見えないウィンドウは真ん中に出るウィンドウより悪い。サイズは表示前に適用するので、復元が跳ねて見えることはない。
+
 ## 1.2.0 - 2026-09-20
 
 - (EN) Shows the hub tree, switchable with the device list rather than replacing it: which socket each device is in, what shares its hub, and the ports with nothing in them. Empty ports come from asking the hub, because a port with nothing in it has no device node to enumerate. Devices attached to WSL, and sharing records with nothing plugged in, are listed apart rather than hung off a guess.

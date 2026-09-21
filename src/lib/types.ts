@@ -129,6 +129,16 @@ export interface Settings {
   autoAttach: boolean;
   /** What to attach automatically. Empty attaches nothing. */
   autoAttachRules: AutoAttachRule[];
+  /**
+   * The window size in physical pixels, and what the list was left showing.
+   *
+   * The window **position** is deliberately not among them: put back on a
+   * machine whose displays have changed, it lands off-screen.
+   */
+  windowWidth?: number;
+  windowHeight?: number;
+  filter?: string;
+  treeView: boolean;
   /** Where `vhfilter.exe` is, when it is not somewhere already searched. */
   vhfilterPath: string;
   /** Whether closing to the tray has been explained once. */

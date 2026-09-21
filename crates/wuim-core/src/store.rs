@@ -217,6 +217,20 @@ pub struct Settings {
     /// What to attach automatically. An empty list attaches nothing, whatever
     /// [`Self::auto_attach`] says.
     pub auto_attach_rules: Vec<Rule>,
+    /// The window size, in physical pixels. Absent means "as it was built".
+    ///
+    /// **The position is deliberately not kept.** A window put back where it was
+    /// lands off-screen as soon as the displays are not the ones it was closed
+    /// on — a docked laptop, a projector unplugged — and a window nobody can see
+    /// is worse than one that opens in the middle. The size does not have that
+    /// failure: a size too large for the new display is clamped by Windows, and
+    /// the window is still there.
+    pub window_width: Option<u32>,
+    pub window_height: Option<u32>,
+    /// The filter tab the list was left on.
+    pub filter: Option<String>,
+    /// Whether the list was left in tree order.
+    pub tree_view: bool,
     /// Where `vhfilter.exe` is, when it is not somewhere [`crate::ppps::locate`]
     /// already looks. Empty means "look in the usual places".
     ///
@@ -254,6 +268,10 @@ impl Default for Settings {
             // is not something to start doing on a fresh install.
             auto_attach: false,
             auto_attach_rules: Vec::new(),
+            window_width: None,
+            window_height: None,
+            filter: None,
+            tree_view: false,
             vhfilter_path: String::new(),
             told_about_tray: false,
         }

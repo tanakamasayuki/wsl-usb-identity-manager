@@ -29,6 +29,8 @@
     showWindow,
     writeSettings,
   } from "./lib/api";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
+
   import { t } from "./lib/i18n";
   import type {
     Availability,
@@ -153,6 +155,14 @@
   let topology = $state<TopologyView | null>(null);
   /** Where `vhfilter.exe` is, when it is not somewhere already searched. */
   let vhfilterPath = $state("");
+  /**
+   * The window size, kept so the next start is the size this one was left.
+   *
+   * Written from the resize listener rather than read back from the window, so
+   * the value saved is the one the user last settled on.
+   */
+  let windowWidth = $state<number | undefined>(undefined);
+  let windowHeight = $state<number | undefined>(undefined);
   /**
    * Whether closing the window has been explained once.
    *
@@ -307,6 +317,38 @@
       .sort()
       .join("\u0001"),
   );
+
+  // The tab and the view are settings like any other: what the user chose to
+  // look at, which they should not have to choose again every morning.
+  $effect(() => {
+    void filter;
+    void treeView;
+    void saveSettings();
+  });
+
+  /**
+   * Keeps the window size, once the dragging stops.
+   *
+   * A resize fires continuously, and writing the settings file on each frame
+   * would be a file write per pixel. The delay means what is saved is the size
+   * the user settled on rather than every size passed through on the way.
+   */
+  $effect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stop = getCurrentWindow().onResized(({ payload }) => {
+      // Ignored while minimised: Windows reports a size of zero, and saving it
+      // would open the next session as a window with nothing in it.
+      if (payload.width === 0 || payload.height === 0) return;
+      windowWidth = payload.width;
+      windowHeight = payload.height;
+      clearTimeout(timer);
+      timer = setTimeout(() => void saveSettings(), 800);
+    });
+    return () => {
+      clearTimeout(timer);
+      void stop.then((off) => off());
+    };
+  });
 
   $effect(() => {
     // Only while the tree is on screen: it costs an IOCTL per hub, and the flat
@@ -682,6 +724,14 @@
         autoAttach = stored.settings.autoAttach;
         autoAttachRules = stored.settings.autoAttachRules;
         vhfilterPath = stored.settings.vhfilterPath;
+        // Where the list was left. A tab that no longer exists is ignored
+        // rather than leaving the window on a filter nothing matches.
+        if (stored.settings.filter && FILTERS.some((f) => f.id === stored.settings.filter)) {
+          filter = stored.settings.filter as Filter;
+        }
+        treeView = stored.settings.treeView;
+        windowWidth = stored.settings.windowWidth;
+        windowHeight = stored.settings.windowHeight;
         toldAboutTray = stored.settings.toldAboutTray;
         settingsWritable = stored.writable;
         settingsPath = stored.path;
@@ -750,6 +800,10 @@
       startWithWindows,
       autoAttach,
       autoAttachRules,
+      windowWidth,
+      windowHeight,
+      filter,
+      treeView,
       vhfilterPath,
       toldAboutTray,
     }).catch((e) => {

@@ -1169,6 +1169,20 @@ separately.
 > (`CREATE_NO_WINDOW`). A black box flashing every two seconds is not something a
 > resident application can do.
 
+**R10.37**: The window size, the filter tab and the view mode (list or tree) are
+saved and restored at the next start.
+
+> All three are **things the user chose**, which is what §7.1 saves. There is no
+> reason to make them choose again every morning. The size is applied before the
+> window is shown; applied afterwards it arrives as a visible jump.
+
+**R10.38**: The window **position must not be saved**.
+
+> Display arrangements change — a laptop undocked, a projector unplugged — and a
+> window put back where it was then lands off-screen. **A window nobody can see
+> is worse than one that opens in the middle.** The size has no such failure: one
+> too large for the new display is clamped, and the window is still there.
+
 ## 11. The technical stack
 
 | Layer | Choice |
