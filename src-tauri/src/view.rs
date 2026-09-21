@@ -338,6 +338,7 @@ impl DeviceView {
         ids: &UsbIds,
         identity: Option<Identity>,
         last: LastKnown,
+        port: Option<(String, u32)>,
         rules: &[Rule],
     ) -> Self {
         let usbipd = row.usbipd.as_ref();
@@ -363,8 +364,8 @@ impl DeviceView {
             com_port: row.com_port().map(str::to_owned),
             location_path: row.location_path().map(str::to_owned),
             port_chain: row.windows.as_ref().and_then(|w| w.port_chain()),
-            parent_instance_id: row.parent_instance_id().map(str::to_owned),
-            port_address: row.port_address(),
+            parent_instance_id: port.as_ref().map(|(hub, _)| hub.clone()),
+            port_address: port.as_ref().map(|(_, at)| *at),
 
             state: row.sharing_state().label(),
             present: usbipd.is_some_and(|d| d.is_connected()),

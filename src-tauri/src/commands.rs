@@ -180,6 +180,7 @@ fn to_views(snapshot: &Snapshot) -> Vec<DeviceView> {
         .map(|row| row.instance_id.raw.clone())
         .collect();
     state::forget_absent(&present);
+    state::forget_ports(&present);
     remember_names(snapshot);
 
     snapshot
@@ -204,7 +205,13 @@ fn to_views(snapshot: &Snapshot) -> Vec<DeviceView> {
                 .as_ref()
                 .map(LastKnown::from)
                 .unwrap_or_default();
-            DeviceView::from_row(row, ids, identity, last, &rules)
+            let port = state::port_of(
+                &row.instance_id.raw,
+                row.parent_instance_id()
+                    .zip(row.port_address())
+                    .map(|(hub, at)| (hub.to_owned(), at)),
+            );
+            DeviceView::from_row(row, ids, identity, last, port, &rules)
         })
         .collect()
 }

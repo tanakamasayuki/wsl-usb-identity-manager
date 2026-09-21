@@ -22,6 +22,14 @@ struct Held {
     /// False when the file on disk was refused. Everything still works for this
     /// session; nothing is saved, because saving would destroy it.
     writable: bool,
+    /// Where each connected device was last seen plugged in, as (hub, port).
+    ///
+    /// Not an identity and not persisted: it fills the gap while Windows
+    /// re-enumerates a device, which is the one moment the device has no node
+    /// to read a port from while still being connected. Dropped as soon as the
+    /// device stops being connected, so it can never outlive the socket it
+    /// describes.
+    ports: HashMap<String, (String, u32)>,
     /// Identities from probes, keyed by device instance id. Never written out.
     ///
     /// The confirmed ones: what a board answered while it was plugged in. What
@@ -57,6 +65,7 @@ fn held() -> &'static Mutex<Held> {
             store,
             writable,
             identities: HashMap::new(),
+            ports: HashMap::new(),
         })
     })
 }
@@ -106,6 +115,35 @@ pub fn is_writable() -> bool {
 
 pub fn path() -> PathBuf {
     held().lock().unwrap().path.clone()
+}
+
+/// Records where a device is plugged in, and answers for it while Windows has
+/// nothing to say.
+///
+/// `live` is what the enumeration knows right now. When it has an answer that
+/// answer is kept and returned; when it does not — the moment between a detach
+/// and the device node coming back — the last one stands in. The device has not
+/// moved in that moment; only Windows' account of it has gone briefly missing.
+pub fn port_of(instance_id: &str, live: Option<(String, u32)>) -> Option<(String, u32)> {
+    let mut guard = held().lock().unwrap();
+    match live {
+        Some(port) => {
+            guard.ports.insert(instance_id.to_owned(), port.clone());
+            Some(port)
+        }
+        None => guard.ports.get(instance_id).cloned(),
+    }
+}
+
+/// Forgets where devices were plugged in once they stop being connected.
+///
+/// Unlike the name and the identity, this is not kept as a reminder: a port is
+/// only worth reporting for something that is actually on it.
+pub fn forget_ports(connected: &[String]) {
+    let mut guard = held().lock().unwrap();
+    guard
+        .ports
+        .retain(|id, _| connected.iter().any(|c| c == id));
 }
 
 /// Records what a probe found, as this session's answer and as the reminder
