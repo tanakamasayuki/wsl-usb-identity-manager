@@ -142,8 +142,9 @@ export function buildTree(
     if (!hubs.has(key(hub.parentInstanceId))) emitHub(hub, 0, null);
   }
 
-  // Attached to WSL, or a sharing record with nothing plugged in: no port to sit
-  // on, so they go at the end rather than hung off a guess.
+  // What is left has no socket to sit on: a sharing record for something that is
+  // not plugged in. An attached device is not among them — the stub Windows puts
+  // in its place holds the port, so it stays where it is plugged in.
   for (const device of shown) {
     if (!placed.has(device.instanceId)) {
       rows.push({ kind: "device", depth: 0, device, hub: null, port: null });

@@ -48,16 +48,26 @@ impl DeviceRow {
     /// matched against, never persisted as a device identity.
     /// The node this device hangs off, and the port number on it.
     ///
-    /// The join for the hub tree. Taken from the device tree rather than from a
-    /// location path: a path is a formatted string a device can stop publishing
-    /// — which is what a `usbipd` bind does — while the tree still knows
-    /// exactly where the device is.
+    /// The join for the hub tree, and taken from the device tree rather than
+    /// from a location path — a path is a formatted string, and one a device
+    /// stops publishing in exactly the case this has to survive.
+    ///
+    /// **The stub stands in while the device is attached.** Handing a device to
+    /// WSL leaves it with no node of its own, but the VBoxUSB stub Windows puts
+    /// in its place is on the same socket (finding F4), so it answers the same
+    /// question. Without this an attached device drops out of the tree at the
+    /// moment its port matters most.
     pub fn parent_instance_id(&self) -> Option<&str> {
-        self.windows.as_ref()?.parent_instance_id.as_deref()
+        self.port_node()?.parent_instance_id.as_deref()
     }
 
     pub fn port_address(&self) -> Option<u32> {
-        self.windows.as_ref()?.address
+        self.port_node()?.address
+    }
+
+    /// Whichever node currently occupies the device's port.
+    fn port_node(&self) -> Option<&WinUsbDevice> {
+        self.windows.as_ref().or(self.stub.as_ref())
     }
 
     pub fn location_path(&self) -> Option<&str> {
