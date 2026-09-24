@@ -56,6 +56,27 @@ pub fn set(enabled: bool) -> Result<()> {
     }
 }
 
+/// Puts the entry back if it is missing altogether.
+///
+/// The installer Tauri generates deletes a `Run` value named after the product
+/// whenever it uninstalls without `/UPDATE` — and reinstalling by hand runs the
+/// uninstaller first, with the "uninstall before installing" option selected
+/// by default. The value name has to stay the product name so that a real
+/// uninstall still cleans up, so the entry is restored here instead, from the
+/// setting that recorded the user asking for it.
+///
+/// Only an absent value is restored. One that points at another copy is left
+/// alone: that is a different installation's entry, not a lost one.
+///
+/// Returns whether anything was written.
+pub fn restore_if_missing() -> Result<bool> {
+    if read_value()?.is_some() {
+        return Ok(false);
+    }
+    write_value(&command_line()?)?;
+    Ok(true)
+}
+
 /// The command Windows will run.
 ///
 /// Quoted, because the path contains spaces once the application is installed

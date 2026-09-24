@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- (EN) Fix: reinstalling turned off starting with Windows. When run by hand over an existing copy, the installer uninstalls it first by default, and that uninstall deletes the startup entry — rightly, for a real uninstall. The application now puts the entry back when it starts, if the setting says it should be there and the entry is gone. An entry that points at another copy is left alone.
+- (JA) 修正: 再インストールすると「Windows と一緒に起動する」が外れていた。既存のコピーに上書きしてインストーラを手で実行すると、既定では先にアンインストールが走り、その際にスタートアップの登録が消される（本当のアンインストールなら正しい動作）。設定では有効なのに登録が消えている場合、起動時に登録し直すようにした。別のコピーを指している登録には触れない。
+
 ## 1.3.0 - 2026-09-24
 
 - (EN) **Identifier change for boards named from their USB descriptors.** The key is now `<family>-<serial>` — `renesas-34b7da65b1c8` rather than `arduino-uno-r4-minima-34b7da65b1c8` — and the board's name moves to the type shown beside it. The name comes from a table that grows with every import, and a VID:PID that names one board today can be shared by two tomorrow; a key built from it would change under a device that had not changed at all. The serial is what tells units apart, so nothing is lost. An automatic-attach rule that matched such a board by board ID has to be added again; ESP32 and CH32 identifiers are unaffected.

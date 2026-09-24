@@ -89,6 +89,21 @@ fn main() {
                 logging::error(&format!("could not create the tray icon: {e:#}"));
             }
 
+            // Reinstalling removes the startup entry (see
+            // `autostart::restore_if_missing`), so the setting is re-applied
+            // here. Not from a debug build: that would point the entry at a
+            // copy under `target`.
+            let wanted = state::with(|store| store.settings.start_with_windows);
+            if wanted && !cfg!(debug_assertions) {
+                match autostart::restore_if_missing() {
+                    Ok(true) => logging::info("startup entry was missing; restored"),
+                    Ok(false) => {}
+                    Err(e) => {
+                        logging::error(&format!("could not restore the startup entry: {e:#}"))
+                    }
+                }
+            }
+
             // Sized before it is shown, so a restored size does not arrive as a
             // visible jump. The position is not restored — see
             // `Settings::window_width` for why.

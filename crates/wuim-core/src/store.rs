@@ -205,7 +205,8 @@ pub struct Settings {
     ///
     /// The registry is what Windows acts on, so it is the authority; this field
     /// records what the user asked for and is applied to the registry when it
-    /// changes. See [`crate::autostart`].
+    /// changes, and at startup when the entry has gone missing — which is what
+    /// reinstalling does to it. See [`crate::autostart::restore_if_missing`].
     pub start_with_windows: bool,
     /// Attach matching devices to WSL without being asked (§9).
     ///
