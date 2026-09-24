@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.3.1 - 2026-09-24
+
 - (EN) Fix: reinstalling turned off starting with Windows. When run by hand over an existing copy, the installer uninstalls it first by default, and that uninstall deletes the startup entry — rightly, for a real uninstall. The application now puts the entry back when it starts, if the setting says it should be there and the entry is gone. An entry that points at another copy is left alone.
 - (JA) 修正: 再インストールすると「Windows と一緒に起動する」が外れていた。既存のコピーに上書きしてインストーラを手で実行すると、既定では先にアンインストールが走り、その際にスタートアップの登録が消される（本当のアンインストールなら正しい動作）。設定では有効なのに登録が消えている場合、起動時に登録し直すようにした。別のコピーを指している登録には触れない。
 
