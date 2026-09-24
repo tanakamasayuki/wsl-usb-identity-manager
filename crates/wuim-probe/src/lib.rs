@@ -117,6 +117,10 @@ pub mod notes {
         code: "probe.blocked.claimed_by_another",
         en: "another probe recognises this hardware",
     };
+    pub const KNOWN_FAMILY: Note = Note {
+        code: "probe.blocked.known_family",
+        en: "the USB ID names a board family no probe here reads",
+    };
 
     pub const NOT_CONNECTED: Note = Note {
         code: "probe.blocked.not_connected",
@@ -198,12 +202,27 @@ pub fn applicable(device: &WinUsbDevice) -> Vec<(Box<dyn TargetProbe>, Applicabi
         probe.recognition() == Recognition::ByIdentifier
             && !matches!(verdict, Applicability::NotApplicable(_))
     });
+    // The board table settles the family even where no probe here reads it. A
+    // Pico running the SDK's CDC stdio has a COM port like any bridge, but no
+    // ROM bootloader behind it for the ESP32 sync to reach — so the fallback
+    // would reset a board it cannot identify. Espressif pairs are not in the
+    // table, so this never keeps the ESP32 probe from an ESP32.
+    let known_family = device
+        .instance_id
+        .vid_pid()
+        .and_then(|(vid, pid)| usb_descriptor::board_for_usb_id(vid, pid))
+        .is_some();
 
     verdicts
         .into_iter()
         .map(|(probe, verdict)| {
-            if claimed && probe.recognition() == Recognition::Fallback {
+            if probe.recognition() != Recognition::Fallback {
+                (probe, verdict)
+            } else if claimed {
                 let note = notes::CLAIMED_BY_ANOTHER;
+                (probe, Applicability::NotApplicable(note))
+            } else if known_family {
+                let note = notes::KNOWN_FAMILY;
                 (probe, Applicability::NotApplicable(note))
             } else {
                 (probe, verdict)
@@ -232,5 +251,54 @@ mod tests {
                 ),
             }
         }
+    }
+
+    fn device(raw: &str) -> WinUsbDevice {
+        WinUsbDevice {
+            instance_id: wuim_core::instance_id::InstanceId::parse(raw),
+            device_desc: None,
+            friendly_name: None,
+            bus_reported_device_desc: None,
+            manufacturer: None,
+            service: None,
+            container_id: None,
+            location_paths: Vec::new(),
+            parent_instance_id: None,
+            address: None,
+            com_port: Some("COM9".into()),
+            revision: None,
+            driver_version: None,
+            problem_code: None,
+        }
+    }
+
+    fn verdict_of(raw: &str, family: &str) -> Applicability {
+        applicable(&device(raw))
+            .into_iter()
+            .find(|(probe, _)| probe.family() == family)
+            .map(|(_, verdict)| verdict)
+            .expect("probe listed")
+    }
+
+    #[test]
+    fn a_known_rp2040_pair_keeps_the_serial_fallback_away() {
+        // SparkFun Pro Micro RP2040 and the Pico SDK's CDC stdio: shared pairs,
+        // so nothing names the board, but the family is not one to reset.
+        for raw in [
+            r"USB\VID_1B4F&PID_0026\E660583883734B2F",
+            r"USB\VID_2E8A&PID_000A\E660583883734B2F",
+        ] {
+            assert_eq!(
+                verdict_of(raw, "esp32"),
+                Applicability::NotApplicable(notes::KNOWN_FAMILY),
+                "{raw}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_stock_bridge_is_still_offered_to_the_serial_fallback() {
+        let raw = r"USB\VID_1A86&PID_7523\5&2B9E3E4B&0&3";
+        assert_eq!(verdict_of(raw, "esp32"), Applicability::Supported);
     }
 }

@@ -263,6 +263,9 @@ const en = {
   "probe.blocked.not_a_serial_carrier":
     "A debug probe's own serial port, not a link to a board.",
   "probe.blocked.not_a_wchlink": "Not a WCH-Link.",
+  "probe.blocked.claimed_by_another": "Another probe recognises this hardware.",
+  "probe.blocked.known_family":
+    "The USB ID names a board family that no probe here reads.",
   "probe.blocked.wchlink_arm_mode":
     "The WCH-Link is in ARM mode. Switch it to RISC-V mode to identify CH32 parts.",
   "probe.blocked.not_connected": "The device is not connected.",
@@ -531,6 +534,9 @@ const ja: Record<Key, string> = {
   "probe.blocked.not_a_serial_carrier":
     "デバッグプローブ自身のシリアルポートです。ボードへの経路ではありません。",
   "probe.blocked.not_a_wchlink": "WCH-Link ではありません。",
+  "probe.blocked.claimed_by_another": "別のプローブがこのハードウェアを認識しています。",
+  "probe.blocked.known_family":
+    "USB ID から分かるボード系列に、対応するプローブがありません。",
   "probe.blocked.wchlink_arm_mode":
     "WCH-Link が ARM モードです。CH32 を識別するには RISC-V モードに切り替えてください。",
   "probe.blocked.not_connected": "デバイスが接続されていません。",

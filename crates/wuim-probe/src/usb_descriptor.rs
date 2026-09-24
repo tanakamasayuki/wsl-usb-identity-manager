@@ -10,9 +10,16 @@
 //!
 //! It answers only where the descriptors settle both halves of the question:
 //!
-//! * **which model**, from a VID/PID pair the vendor programmed for that board,
-//!   and
+//! * **which model**, from a VID/PID pair the vendor programmed for that board —
+//!   or, for a family whose boards speak USB from the target chip, at least
+//!   which family (see [`family_label`]) — and
 //! * **which unit**, from the serial number the device reports.
+//!
+//! The key is `<family>-<serial>`, never the board's name. The name comes from
+//! a generated table that grows with every regeneration, and a pair that names
+//! one board today can be shared by two tomorrow; a key built from it would
+//! change under a stored device without the device changing at all. The family
+//! does not move that way, and the serial is what tells units apart anyway.
 //!
 //! A stock USB-UART bridge answers neither. A CH340 is a CH340 whether it is
 //! soldered to an ESP32 or wired to a bare AVR, so its pair names the cable and
@@ -80,6 +87,20 @@ pub fn board_for_usb_id(vid: u16, pid: u16) -> Option<&'static BoardId> {
     BOARD_IDS.get(at)
 }
 
+/// What to show for a board the table names only by family.
+///
+/// `None` for a family whose shared pairs are not the board's own USB: the
+/// `stm32` ones are ST-LINKs, whose serial is the debug probe's, not the
+/// board's. Only a family whose boards speak USB from the target chip itself
+/// can have its units told apart by serial without knowing the board.
+fn family_label(family: &str) -> Option<&'static str> {
+    match family {
+        // arduino-pico's platform name. It carries the RP2350 boards as well.
+        "rp2040" => Some("RP2040 / RP2350"),
+        _ => None,
+    }
+}
+
 /// The board an instance id names, where its descriptors name one.
 ///
 /// `None` is the normal answer: most devices are bridges, hubs, or boards no
@@ -87,14 +108,17 @@ pub fn board_for_usb_id(vid: u16, pid: u16) -> Option<&'static BoardId> {
 pub fn identify(instance_id: &InstanceId) -> Option<TargetIdentity> {
     let (vid, pid) = instance_id.vid_pid()?;
     let board = board_for_usb_id(vid, pid)?;
-    // A pair several boards share names the family but not the board, and a
-    // name every unit of a model shares is not a name.
-    let variant = board.variant?;
+    // A pair several boards share names the family but not the board. That is
+    // still enough where the family says the serial is the board's own.
+    let device_type = match board.variant {
+        Some(variant) => variant,
+        None => family_label(board.family)?,
+    };
     let serial = instance_id.unit.serial()?;
 
     // A serial too short to be an identity is no better than none. The same
     // rule the probes are held to (§4.5), applied to the same value.
-    let identity_key = identity_key(variant, serial).ok()?;
+    let identity_key = identity_key(board.family, serial).ok()?;
 
     let mut details = BTreeMap::new();
     details.insert("family".into(), board.family.to_owned());
@@ -104,7 +128,7 @@ pub fn identify(instance_id: &InstanceId) -> Option<TargetIdentity> {
         family: board.family,
         identity_key,
         device_id: serial.to_owned(),
-        device_type: variant.to_owned(),
+        device_type: device_type.to_owned(),
         hardware_revision: None,
         id_source: id_sources::USB_SERIAL,
         details,
@@ -133,7 +157,7 @@ mod tests {
         let found = identity_for("USB\\VID_2341&PID_0069\\34B7DA65B1C8").expect("named");
         assert_eq!(found.device_type, "arduino-uno-r4-minima");
         assert_eq!(found.device_id, "34B7DA65B1C8");
-        assert_eq!(found.identity_key, "arduino-uno-r4-minima-34b7da65b1c8");
+        assert_eq!(found.identity_key, "renesas-34b7da65b1c8");
         assert_eq!(found.id_source, id_sources::USB_SERIAL);
     }
 
@@ -144,6 +168,16 @@ mod tests {
         assert!(identity_for("USB\\VID_1A86&PID_7523\\5B5F090816").is_none());
         assert!(is_generic_bridge(0x10C4, 0xEA60));
         assert!(board_for_usb_id(0x10C4, 0xEA60).is_none());
+    }
+
+    #[test]
+    fn an_rp2040_platform_pair_is_named_by_family() {
+        // SparkFun Pro Micro RP2040/RP2350: a shared pair, so no board name,
+        // but the serial is the board's own flash or chip id.
+        let found = identity_for(r"USB\VID_1B4F&PID_0026\E660583883734B2F").expect("named");
+        assert_eq!(found.device_type, "RP2040 / RP2350");
+        assert_eq!(found.identity_key, "rp2040-e660583883734b2f");
+        assert_eq!(found.family, "rp2040");
     }
 
     #[test]
