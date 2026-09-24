@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.3.0 - 2026-09-24
+
 - (EN) **Identifier change for boards named from their USB descriptors.** The key is now `<family>-<serial>` — `renesas-34b7da65b1c8` rather than `arduino-uno-r4-minima-34b7da65b1c8` — and the board's name moves to the type shown beside it. The name comes from a table that grows with every import, and a VID:PID that names one board today can be shared by two tomorrow; a key built from it would change under a device that had not changed at all. The serial is what tells units apart, so nothing is lost. An automatic-attach rule that matched such a board by board ID has to be added again; ESP32 and CH32 identifiers are unaffected.
 - (JA) **USB ディスクリプタで識別したボードの識別子が変わります。** `arduino-uno-r4-minima-34b7da65b1c8` ではなく `renesas-34b7da65b1c8` のように `<ファミリ>-<シリアル>` になり、ボード名は横に出る種別の側へ移ります。ボード名は取り込むたびに増える対応表から来ており、今日 1 つのボードを指す VID:PID が明日には 2 つに共有されうる——それを識別子に含めると、デバイスは何も変わっていないのに識別子が変わってしまう。個体を分けているのはシリアルなので、識別力は落ちない。ボード ID でこれらのボードを指定していた自動 Attach の条件は登録し直しが必要です。ESP32 と CH32 の識別子は変わりません。
 - (EN) Names RP2040 and RP2350 boards whose VID:PID several boards share — a SparkFun Pro Micro on `1b4f:0026`, anything on the Pico SDK's `2e8a:000a` — by family and serial, shown as `RP2040 / RP2350`. The firmware reports the flash or chip unique id as its serial, so the unit is known even where the board is not; which of the two chips it is cannot be told from the descriptors, so neither is claimed. Shared pairs of other families are still not named: the `stm32` ones are ST-LINKs, whose serial is the debug probe's.
