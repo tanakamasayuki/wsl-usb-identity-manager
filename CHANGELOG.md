@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- (EN) **Identifier change for boards named from their USB descriptors.** The key is now `<family>-<serial>` — `renesas-34b7da65b1c8` rather than `arduino-uno-r4-minima-34b7da65b1c8` — and the board's name moves to the type shown beside it. The name comes from a table that grows with every import, and a VID:PID that names one board today can be shared by two tomorrow; a key built from it would change under a device that had not changed at all. The serial is what tells units apart, so nothing is lost. An automatic-attach rule that matched such a board by board ID has to be added again; ESP32 and CH32 identifiers are unaffected.
+- (JA) **USB ディスクリプタで識別したボードの識別子が変わります。** `arduino-uno-r4-minima-34b7da65b1c8` ではなく `renesas-34b7da65b1c8` のように `<ファミリ>-<シリアル>` になり、ボード名は横に出る種別の側へ移ります。ボード名は取り込むたびに増える対応表から来ており、今日 1 つのボードを指す VID:PID が明日には 2 つに共有されうる——それを識別子に含めると、デバイスは何も変わっていないのに識別子が変わってしまう。個体を分けているのはシリアルなので、識別力は落ちない。ボード ID でこれらのボードを指定していた自動 Attach の条件は登録し直しが必要です。ESP32 と CH32 の識別子は変わりません。
+- (EN) Names RP2040 and RP2350 boards whose VID:PID several boards share — a SparkFun Pro Micro on `1b4f:0026`, anything on the Pico SDK's `2e8a:000a` — by family and serial, shown as `RP2040 / RP2350`. The firmware reports the flash or chip unique id as its serial, so the unit is known even where the board is not; which of the two chips it is cannot be told from the descriptors, so neither is claimed. Shared pairs of other families are still not named: the `stm32` ones are ST-LINKs, whose serial is the debug probe's.
+- (JA) 複数のボードが VID:PID を共有している RP2040 / RP2350 ボード——`1b4f:0026` の SparkFun Pro Micro や、Pico SDK の `2e8a:000a` を使うもの——をファミリとシリアルで識別し、`RP2040 / RP2350` と表示する。ファームはフラッシュまたはチップのユニーク ID をシリアルとして返すため、ボードが特定できなくても個体は特定できる。2 つのチップのどちらかはディスクリプタからは判らないので、どちらとも名乗らない。他ファミリの共有ペアは引き続き識別しない——`stm32` のものは ST-LINK で、シリアルはデバッグプローブ自身のものだからである。
+- (EN) Fix: a board the VID:PID table knows was offered the ESP32 probe whenever it had a COM port — a Pico running CDC stdio, for one. The probe would reset a board it had no way to identify. The table now rules the serial-port fallback out even where it cannot name the board, and says so.
+- (JA) 修正: VID:PID の対応表に載っているボードでも、COM ポートがあれば ESP32 のプローブが候補に出ていた（CDC stdio の Pico など）。識別できる見込みのないボードをリセットするだけだった。ボード名まで決まらなくても対応表に載っていればシリアル経由のフォールバックは候補から外し、その理由を表示する。
+
 ## 1.2.1 - 2026-09-21
 
 - (EN) Remembers the window size, the filter tab and whether the list was left in tree order. The window **position** is deliberately not remembered: put back on a machine whose displays have changed, a window lands off-screen, and one nobody can see is worse than one that opens in the middle. The size is applied before the window is shown, so a restored size is not a visible jump.
