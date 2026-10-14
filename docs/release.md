@@ -172,11 +172,16 @@ later release submits itself:
 | Kind | Name | Value |
 | --- | --- | --- |
 | Variable | `WINGET_IDENTIFIER` | the PackageIdentifier the first submission used |
-| Secret | `WINGET_TOKEN` | a **classic** personal access token with `public_repo` scope |
+| Secret | `WINGET_TOKEN` | a **classic** personal access token with `public_repo` and `workflow` scopes |
 
 A fine-grained token will not work — `winget-releaser` needs a classic one. The
 token forks `microsoft/winget-pkgs` under the account that owns it and opens the
 pull request from there.
+
+The `workflow` scope is needed too. Before submitting, the action syncs the fork
+with upstream, and GitHub refuses that update when upstream has changed anything
+under `.github/workflows` and the token lacks the scope. It fails with
+`does not have the correct permissions to execute UpdateRef`.
 
 The WinGet step is skipped while `WINGET_IDENTIFIER` is unset, so the release
 workflow is usable before any of this is arranged.

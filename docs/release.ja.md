@@ -169,11 +169,16 @@ PR には Microsoft の検証が走り、モデレータがマージする。所
 | 種別 | 名前 | 値 |
 | --- | --- | --- |
 | Variable | `WINGET_IDENTIFIER` | 初回提出で使った PackageIdentifier |
-| Secret | `WINGET_TOKEN` | `public_repo` スコープを持つ**クラシック**の PAT |
+| Secret | `WINGET_TOKEN` | `public_repo` と `workflow` スコープを持つ**クラシック**の PAT |
 
 **fine-grained のトークンは使えない。** `winget-releaser` はクラシック PAT を要求する。
 このトークンの所有アカウントの下に `microsoft/winget-pkgs` をフォークし、
 そこから PR を出す。
+
+`workflow` スコープも必要になる。提出の前にフォークを upstream と同期するが、
+upstream 側で `.github/workflows` が変わっていると、このスコープが無い
+トークンでは同期が拒否される。そのときは
+`does not have the correct permissions to execute UpdateRef` で失敗する。
 
 `WINGET_IDENTIFIER` が未設定の間、WinGet のステップは丸ごとスキップされる。
 設定前でもリリースワークフローはそのまま使える。
