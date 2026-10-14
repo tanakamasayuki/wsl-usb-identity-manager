@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.3.2 - 2026-10-14
+
 ## 1.3.1 - 2026-09-24
 
 - (EN) Fix: reinstalling turned off starting with Windows. When run by hand over an existing copy, the installer uninstalls it first by default, and that uninstall deletes the startup entry — rightly, for a real uninstall. The application now puts the entry back when it starts, if the setting says it should be there and the entry is gone. An entry that points at another copy is left alone.
