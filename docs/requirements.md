@@ -1336,6 +1336,17 @@ release directly.
 > that already have WebView2; unlike the installer it cannot embed a bootstrapper
 > (§11.2).
 
+**R12.10**: When the installer closes a running copy to replace it, it starts
+the new one again afterwards, with `--hidden`. A copy that was not running is
+not started.
+
+> The NSIS template Tauri generates closes the application before replacing its
+> files and restarts it only when given `/R`, which winget does not pass, so
+> every `winget upgrade` left a resident application closed until the next
+> sign-in. Installer hooks (`src-tauri/windows/hooks.nsh`) record whether it was
+> running before the template closes it. `--hidden` puts it back in the tray, as
+> the `Run` entry does, rather than opening a window nobody asked for.
+
 ### 12.2 Versioning
 
 **R12.4**: The `version` in `Cargo.toml` is the single source of the version.

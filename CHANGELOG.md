@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- (EN) Fix: updating left the application closed. The installer closes a running copy to replace it, and nothing started it again — so after a `winget upgrade` it stayed gone until the next sign-in. A copy that was running before the update is now started again afterwards, in the tray.
+- (JA) 修正: 更新するとアプリが終了したままになっていた。インストーラは置き換えのために実行中のコピーを終了させるが、起動し直す処理が無く、`winget upgrade` のあとは次のサインインまで終了したままだった。更新前に実行していた場合は、更新後にトレイ常駐で起動し直すようにした。
+
 ## 1.3.4 - 2026-10-14
 
 ## 1.3.3 - 2026-10-14
